@@ -31,27 +31,24 @@ class Interpretability:
         logging.basicConfig(filename='Xplain.log', level=logging.INFO, format='%(asctime)s - %(message)s')
         self.logger = logging.getLogger(__name__)
         self.apply_prior= apply_prior
+        self.model_type= model_type
         _model = model.pipeline.named_steps['model']
-        self.processor= model.pipeline.named_steps['preprocessor']
-        self.model_type = model_type
-        self.original_cols= X_train.columns.tolist()
-        self.X_train = self.processor.transform(X_train)
-        self.X_test = self.processor.transform(X_test)
-        self.base_data= X_test.reset_index(drop= True)
+        self.model= self.model_check(_model)
+        self.processor= model
+        # self.processor= model.preprocess
+        self.X_train = self.processor.preprocess_for_shap(X_train, True, None)
+        self.X_test = self.processor.preprocess_for_shap(X_test, False, None)
+        self.original_cols= self.X_train.columns.tolist()
+        self.base_data= self.X_test.reset_index(drop= True)
 
         # despite the order of model train the processor.get_feature_names_out() will always save the order.
-        self.all_feature_names= [i.split('__')[-1] for i in self.processor.get_feature_names_out()]
-
-        # try:
-        #     self.ohe_feature_names= self.processor.named_transformers_['categorical']['one_hot_encoder'].get_feature_names_out()
-        # except:
-        #     self.ohe_feature_names= []
+        self.all_feature_names= self.original_cols
             
         self.y_train = y_train
         self.y_test = y_test
         self.explainer = None
         self.shap_values = None
-        self.model= self.model_check(_model)
+        
         self._compute_shap_values()
         if len(self.shap_values.shape) > 2:
             self.num_cls= self.shap_values.shape[2]
@@ -64,7 +61,7 @@ class Interpretability:
     @property
     def get_shape_vals(self):
         return self.shap_values
-
+    
     def _compute_shap_values(self):
         """
         TODO
@@ -252,15 +249,16 @@ class Interpretability:
                                                             
         values= explainer_values.values #self.shap_values 
         lower_bounds = getattr(explainer_values, "lower_bounds", None)   
-                                                                    
-                                                                    
+                                                           
         upper_bounds = getattr(explainer_values, "upper_bounds", None)
 
         aggregated_shap = {}
         feature_names= np.array(feature_names)
+        print(len(original_feature_names))
         for name in original_feature_names:
-            if name in feature_names:  # numerical feature or non OHE feature (dont know if any exist ¯\_(ツ)_/¯)
+            if name in feature_names: 
                 idx = np.where(feature_names == name)[0][0]
+                # print(idx)
                 if dim3:
                     aggregated_shap[f'{name}_shape_values'] = values[:, idx, :]
                 else:
@@ -304,7 +302,8 @@ class Interpretability:
                                                                                                     self.base_data,
                                                                                                     self.dim3)
         else:
-            inf_data= self.processor.transform(data)
+            
+            inf_data= self.processor.preprocess_for_shap(data)
             explainer = shap.Explainer(self.model)
             shap_values_explainer = explainer(inf_data)
             data= data.reset_index(drop= True)
