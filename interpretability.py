@@ -3,7 +3,7 @@ import shap
 from deprecated import deprecated
 import lime.lime_tabular
 import pandas as pd, numpy as np
-from utils import my_waterfall, og_waterfall
+from utils import my_waterfall, og_waterfall, code_mapper
 
 from sklearn.linear_model import LogisticRegression, LinearRegression, ElasticNet, Lasso, Ridge
 from sklearn.neighbors import KNeighborsRegressor
@@ -38,8 +38,10 @@ class Interpretability:
         # self.processor= model.preprocess
         self.X_train = self.processor.preprocess_for_shap(X_train, True, None)
         self.X_test = self.processor.preprocess_for_shap(X_test, False, None)
+        assert len(self.X_test) == len(X_test), f"mismatch in preprocessing. before: {len(X_test)} After: {len(self.X_test)}" 
         self.original_cols= self.X_train.columns.tolist()
-        self.base_data= self.X_test.reset_index(drop= True)
+        self.base_data= self.X_test#.reset_index(drop= True)
+        self.mapped_df= X_test#[['DIAGNOSIS', 'SERVICE_DESCRIPTION', 'SIGNS_AND_SYMPTOMS']]
 
         # despite the order of model train the processor.get_feature_names_out() will always save the order.
         self.all_feature_names= self.original_cols
@@ -328,9 +330,28 @@ class Interpretability:
                 proc_shap_values= np.array(_shap_values.iloc[idx])
                 base_df= self.base_data#.reset_index()
                 if data is not None:
+                    # here
                     proc_base_df= np.array(base_df.iloc[idx])
                 else:
-                    proc_base_df= np.array(base_df.iloc[idx])[1:]
+                    value_to_key= code_mapper()
+                    # print("COLS: ", base_df.columns)
+                    base_df['PROVIDER_DEPARTMENT_CODE']= self.mapped_df['PROVIDER_DEPARTMENT_CODE']#base_df['PROVIDER_DEPARTMENT_CODE'].map(value_to_key['PROVIDER_DEPARTMENT_CODE'])
+                    # print("company2: ", self.base_data['INSURANCE_COMPANY'].unique())
+                    base_df['INSURANCE_COMPANY']= self.mapped_df['PUR_NAME']#base_df['INSURANCE_COMPANY'].map(value_to_key['PUR_NAME'])
+                    base_df['SUB_ACCOUNT']= self.mapped_df['POLICY_NAME']#base_df['SUB_ACCOUNT'].map(value_to_key['POLICY_NAME'])
+                    data_inf= base_df.iloc[idx]
+                    # print("company: ", base_df['INSURANCE_COMPANY'].unique())
+                    # print("company: ", value_to_key['PUR_NAME'])
+                    # data_inf['PROVIDER_DEPARTMENT_CODE']= data_inf['PROVIDER_DEPARTMENT_CODE'][0]
+                    # data_inf['INSURANCE_COMPANY']= data_inf['INSURANCE_COMPANY'][0]
+                    # data_inf['SUB_ACCOUNT']= data_inf['SUB_ACCOUNT'][0]
+
+                    data_inf['DIAGNOSIS_Agg']= self.mapped_df['DIAGNOSIS'].iloc[idx]
+                    data_inf['SERVICE_DESCRIPTION_Agg']= self.mapped_df['SERVICE_DESCRIPTION'].iloc[idx]
+                    data_inf['SIGNS_AND_SYMPTOMS_Agg']= self.mapped_df['SIGNS_AND_SYMPTOMS'].iloc[idx]
+                    print("asdasdasda", data_inf['DIAGNOSIS_Agg'])
+
+                    proc_base_df= np.array(data_inf)#[1:]
 
                 plts.append(my_waterfall(proc_shap_values, proc_shap_values_base, None, proc_base_df, self.original_cols, 
                                 lower_bounds= lower_bounds, upper_bounds= upper_bounds, max_display= max_display))
@@ -431,21 +452,8 @@ class Interpretability:
         else:
             return model
 
-def shap_lime(cfg, X_train, X_test, y_train=None, y_test=None, m=None, apply_prior= True, **kwargs):
+def shap_lime(interpreter, **kwargs):
     plts = []
-    
-    if m is None:
-        try:
-            with open(cfg['model'], 'rb') as f:
-                m = pickle.load(f)
-        except FileNotFoundError:
-            print("Model file not found.")
-            return plts
-        except pickle.UnpicklingError:
-            print("Error loading the pickle model.")
-            return plts
-    
-    interpreter = Interpretability(m, cfg['task_type'], X_train, X_test, y_train, y_test, apply_prior= apply_prior)
     
     if kwargs:
         for method_name, method_params in kwargs.items():

@@ -3,6 +3,8 @@ from sklearn.impute import SimpleImputer
 from sklearn.ensemble import IsolationForest
 from sklearn.model_selection import train_test_split
 import re
+import json
+
 from shap.plots import colors
 import matplotlib
 from sklearn.decomposition import PCA
@@ -369,16 +371,60 @@ class SkewnessTransformer(BaseEstimator, TransformerMixin):
             else:
                 return 'No Fix'
 
-import pandas as pd
-
-import pandas as pd
-
 def unique_percentage(df):
     return pd.DataFrame({
         'Column': df.columns,
         'Unique_Percentage': [(df[col].nunique() / len(df[col])) * 100 for col in df.columns]
     }).sort_values(by='Unique_Percentage', ascending=False).reset_index(drop=True)
 
+
+def agg_some_features(og_feat, shap_values, data):
+
+    diagnosis_columns = [index for index, column in enumerate(og_feat) if 'ICDText' in column]
+    service_columns = [index for index, column in enumerate(og_feat) if 'CombinedText' in column]
+    signs_symptoms_columns = [index for index, column in enumerate(og_feat) if 'ComplaintText' in column]
+
+    diagnosis = np.sum(shap_values[diagnosis_columns])
+    service = np.sum(shap_values[service_columns])
+    signs_symptoms = np.sum(shap_values[signs_symptoms_columns])
+
+    diagnosis_columns.extend(service_columns)
+    diagnosis_columns.extend(signs_symptoms_columns)
+
+    shap_modified = np.delete(shap_values, diagnosis_columns)
+    data_modified = np.delete(data, diagnosis_columns)
+    shap_modified = np.append(shap_modified, diagnosis)
+    data_modified = np.append(data_modified, diagnosis)
+    shap_modified = np.append(shap_modified, service)
+    data_modified = np.append(data_modified, service)
+    shap_modified = np.append(shap_modified, signs_symptoms)
+    data_modified = np.append(data_modified, signs_symptoms)
+
+    og_feat.extend(['DIAGNOSIS_Agg', 'SERVICE_DESCRIPTION_Agg', 'SIGNS_AND_SYMPTOMS_Agg'])
+    ICDText_cols= [f'ICDText{i}' for i in range(1, 17)]
+    ComplaintText_cols= [f'ComplaintText{i}' for i in range(1, 17)]
+    CombinedText_cols= [f'CombinedText{i}' for i in range(1, 17)]
+    removed_cols= ICDText_cols + ComplaintText_cols + CombinedText_cols
+
+    feat_names= [x for x in og_feat if x not in removed_cols]
+    # assert shap_modified.shape == data_modified.shape, "mismatch"
+    return shap_modified, feat_names, data_modified
+
+def code_mapper():
+    with open("Rejection_Rates.json") as f:
+        d= json.load(f)
+
+    all_dict= {}
+    
+    for item in d.keys():
+        value_to_keys= {}
+        for key, value in d[item].items():
+            if value not in value_to_keys:
+                value_to_keys[value] = [key]  
+            else:
+                value_to_keys[value].append(key)
+        all_dict[item]= value_to_keys
+    return all_dict
 
 def my_waterfall(values, 
               shap_values_base, 
@@ -388,7 +434,8 @@ def my_waterfall(values,
               max_display=-1, 
               show=False,
               lower_bounds= None,
-              upper_bounds= None):
+              upper_bounds= None,
+              CLAIMS= True):
     
     """
     For shap_values is an object of Explanation:
@@ -396,25 +443,22 @@ def my_waterfall(values,
     sv_shape: shap_values.shape
     shap_values_base: shap_values.base_values
     shap_values_display_data: shap_values.display_data
-    shap_values_data: shap_values.data
+    shap_values_data: shap_values.data (pd.DataFrame)
     feature_names: shap_values.feature_names
     values: shap_values.values
     lower_bounds = getattr(shap_values, "lower_bounds", None)
     upper_bounds = getattr(shap_values, "upper_bounds", None)
     """
 
+    # processing: use shap_values_data
+    if CLAIMS:
+        values, feature_names, shap_values_data= agg_some_features(feature_names, values, shap_values_data)
+
+
     # Turn off interactive plot
     if show is False:
         plt.ioff()
 
-    # make sure we only have a single explanation to plot
-    # sv_shape = shap_values.shape
-    # if len(sv_shape) != 1:
-    #     emsg = (
-    #         "The my_waterfall plot can currently only plot a single explanation, but a "
-    #         f"matrix of explanations (shape {sv_shape}) was passed!"
-    #     )
-    #     raise ValueError(emsg)
 
     base_values = float(shap_values_base)
 
@@ -431,6 +475,8 @@ def my_waterfall(values,
     # fallback feature names
     if feature_names is None:
         feature_names = np.array([labels['FEATURE'] % str(i) for i in range(len(values))])
+
+    # preprocess
 
     # init variables we use for tracking the plot locations
     if max_display == -1 or max_display >= int(len(values)):
