@@ -17,6 +17,7 @@ from sklearn.tree import DecisionTreeClassifier
 import matplotlib.pyplot as plt
 import pickle
 import logging
+from lightgbm import LGBMClassifier
 
 import plotly.express as px
 import plotly.graph_objects as go
@@ -71,7 +72,7 @@ class Interpretability:
         multiple outputs: array of shape (#num_samples, *X.shape[1:], #num_outputs).
         """
         if isinstance(self.model, (RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
-                                   ExtraTreesClassifier, XGBClassifier, XGBRegressor)):
+                                   ExtraTreesClassifier, XGBClassifier, XGBRegressor, LGBMClassifier)):
             if self.apply_prior:
                 self.explainer = shap.TreeExplainer(self.model, self.X_train, feature_names= self.all_feature_names)
             else:

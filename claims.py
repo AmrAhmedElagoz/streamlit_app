@@ -158,21 +158,35 @@ class GridSearchModel(BaseEstimator, TransformerMixin):
 
 
 class Model:
-    def __init__(self):
+    def __init__(self, reason: bool):
         self.pipeline = None
         self.model = None
         self.label_encoder = LabelEncoder()
         self.vectorizer = TfidfVectorizer(stop_words='english')
         self.kmeans = KMeans(n_clusters=10, random_state=42)
         self.rejection_rate= {}
-        self._y_test= pd.read_parquet('15OCT_y_test.parquet').reset_index().drop(columns = ['index'])
+        self._y_test= pd.read_parquet('oct_y_test.parquet').reset_index().drop(columns = ['index'])
         self._y_train= pd.read_parquet('oct_y_train.parquet').reset_index().drop(columns = ['index'])
 
-        self.algorithm= xgb.XGBClassifier(use_label_encoder=False, scale_pos_weight= 12,
-                                        colsample_bytree= 0.5227358868077786, learning_rate= 0.02177698447071677,
-                                        max_depth= 9, n_estimators= 952, lambda_l1= 3.9555068852216038, lambda_l2= 8.97246542262531,
-                                        min_child_weight= 5, subsample= 0.7026980209228673, gamma= 2.7012741748633493)
-                
+        self.reason= reason
+        if self.reason:
+            self.algorithm= xgb.XGBClassifier(use_label_encoder=False, scale_pos_weight= 12,
+                                            colsample_bytree= 0.5227358868077786, learning_rate= 0.02177698447071677,
+                                            max_depth= 9, n_estimators= 952, lambda_l1= 3.9555068852216038, lambda_l2= 8.97246542262531,
+                                            min_child_weight= 5, subsample= 0.7026980209228673, gamma= 2.7012741748633493)
+        else:
+            params = {
+                'learning_rate': 0.16533195576040946,
+                'max_depth': 12,
+                'num_leaves': 127,
+                'min_child_samples': 13,
+                'feature_fraction': 0.8151272631073826,
+                'bagging_fraction': 0.8414884725133118,
+                'bagging_freq': 5,
+                'lambda_l1': 0.06489838303883072,
+                'lambda_l2': 2.3985446184593017e-07
+            }
+            self.algorithm= lgb.LGBMClassifier(**params)
 
     def build_pipeline(self, X, poly_feat=False, skew_fix=False):
         categorical_features = X.select_dtypes('object').columns.tolist()
@@ -313,6 +327,7 @@ class Model:
         provider_mapping = {provider: idx for idx, provider in enumerate(df['PROVIDER_DEPARTMENT_CODE'].unique(), start=1)}
 
         df['DOCTOR_CODE'] = df['PROVIDER_DEPARTMENT_CODE'].map(provider_mapping)
+
         df['OUTCOME'] = y['OUTCOME']
 
         if len(self.rejection_rate)== 0:
@@ -343,7 +358,7 @@ class Model:
 
         df['PATIENT_AGE'] = self.label_age(df['PATIENT_AGE'])
         df['VAT_EXISTENCE'] = df['VAT_PERCENTAGE'].map(vats)
-        df['CPG_COMPLIANCE'] = df['CPG_COMPLIANCE'].map({'Compliant': 1, 'Not Compliant': 0})
+        df['CPG_COMPLIANCE'] = df['CPG_COMPLIANCE']#.map({'Compliant': 1, 'Not Compliant': 0})
         
         df.drop(columns = dropped_cols_to_train, inplace= True)
         df.rename(columns={'PUR_NAME': 'INSURANCE_COMPANY'}, inplace= True)
@@ -358,42 +373,63 @@ class Model:
 
         df= self._preprocessing(df, y, train)
         df_test= self._preprocessing(df_test, y_test, train)
-        train_rej = pd.concat([df, y], axis = 1)
-        train_rej = train_rej[(train_rej['FINAL_OUTCOME'] == 0) | (train_rej['FINAL_OUTCOME'] == 2)]
-        X_train_rej = train_rej.drop(columns = ['NOTES', 'OUTCOME' ,'NPHIES_LABEL', 'FINAL_OUTCOME',])
-        y_train_rej = train_rej [['NOTES', 'OUTCOME', 'NPHIES_LABEL', 'FINAL_OUTCOME']]
-        y_train_rej['FINAL_OUTCOME'] = y_train_rej['FINAL_OUTCOME'].map({2: 1, 0:0}).astype(int)
+        if self.reason:
+            train_rej = pd.concat([df, y], axis = 1)
+            train_rej = train_rej[(train_rej['FINAL_OUTCOME'] == 0) | (train_rej['FINAL_OUTCOME'] == 2)]
+            X_train_rej = train_rej.drop(columns = ['NOTES', 'OUTCOME' ,'NPHIES_LABEL', 'FINAL_OUTCOME',])
+            y_train_rej = train_rej [['NOTES', 'OUTCOME', 'NPHIES_LABEL', 'FINAL_OUTCOME']]
+            y_train_rej['FINAL_OUTCOME'] = y_train_rej['FINAL_OUTCOME'].map({2: 1, 0:0}).astype(int)
 
-        # test_rej = pd.concat([df_test, y_test], axis = 1)
-        # # test_rej = test_rej[(test_rej['FINAL_OUTCOME'] == 0) | (test_rej['FINAL_OUTCOME'] == 1)]
-        # X_test_rej = test_rej.drop(columns = ['NOTES', 'OUTCOME',  'NPHIES_LABEL', 'FINAL_OUTCOME'])
-        # y_test_rej = test_rej [['NOTES', 'OUTCOME', 'NPHIES_LABEL', 'FINAL_OUTCOME']]
-        # y_test_rej['FINAL_OUTCOME'] = y_test_rej['FINAL_OUTCOME'].map({2: 1, 0:0}).astype(int)
+            # test_rej = pd.concat([df_test, y_test], axis = 1)
+            # # test_rej = test_rej[(test_rej['FINAL_OUTCOME'] == 0) | (test_rej['FINAL_OUTCOME'] == 1)]
+            # X_test_rej = test_rej.drop(columns = ['NOTES', 'OUTCOME',  'NPHIES_LABEL', 'FINAL_OUTCOME'])
+            # y_test_rej = test_rej [['NOTES', 'OUTCOME', 'NPHIES_LABEL', 'FINAL_OUTCOME']]
+            # y_test_rej['FINAL_OUTCOME'] = y_test_rej['FINAL_OUTCOME'].map({2: 1, 0:0}).astype(int)
 
-        return X_train_rej, y_train_rej, df_test, y_test
+            return X_train_rej, y_train_rej, df_test, y_test
+        else:
+            return df, y, df_test, y_test
 
     def train(self, X: pd.DataFrame, y: pd.Series, X_test, y_test):
         self.build_pipeline(X, skew_fix=False, poly_feat=False)
-        _y= y['FINAL_OUTCOME']
+        if self.reason:
+            _y= y['FINAL_OUTCOME']
+        else:
+            _y= y['OUTCOME']
+
         if _y.dtypes == 'object':
             _y = self.label_encoder.fit_transform(_y)
 
 
-        X_train_rej, y_train_rej, X_test_rej, y_test_rej= self.medical_rejection(X,
-                                                                                 y,
-                                                                                 X_test,
-                                                                                 y_test,
-                                                                                 True)
+        X_train, y_train, X_test, y_test= self.medical_rejection(X,
+                                                                y,
+                                                                X_test,
+                                                                y_test,
+                                                                True,
+                                                                )
         
 
-        X_train_rej= self.encode_label(X_train_rej)
-        X_test_rej= self.encode_label(X_test_rej)
-        self.pipeline.set_params(
-            model__eval_set=[(X_test_rej, y_test_rej['FINAL_OUTCOME'])],
-            model__verbose=True,
+        X_train= self.encode_label(X_train)
+        X_test= self.encode_label(X_test)
+        # return X_train, y_train, X_test, y_test
+        if self.reason:
+            self.pipeline.set_params(
+                model__eval_set=[(X_test, y_test['FINAL_OUTCOME'])],
+                model__verbose=True,
+                # model__early_stopping_rounds=20
+            )
+            self.pipeline.fit(X_train, y_train['FINAL_OUTCOME'])
+        else:
+            # train_data = lgb.Dataset(X_train, label=y_train['OUTCOME'])
+            # test_data = lgb.Dataset(X_test, label=y_test['OUTCOME'], reference=train_data)
+
+            self.pipeline.set_params(
+            model__valid_sets=[(X_test, y_test['OUTCOME'])],
+            # model__verbose=True,
             # model__early_stopping_rounds=20
-        )
-        self.pipeline.fit(X_train_rej, y_train_rej['FINAL_OUTCOME'])
+            )
+            print("trying to fit")
+            self.pipeline.fit(X_train, y_train['OUTCOME'])           
         
         self.model = self.pipeline.named_steps['model']
 
@@ -451,12 +487,15 @@ class Model:
         print(f"Model saved successfully as: {file_path}")
 
 
-def model(X_train, X_test, y_train, y_test):
-    _model= Model()
+def model(X_train, X_test, y_train, y_test, reason= False):
+    _model= Model(reason= reason)
     _model.train(X_train, y_train, X_test, y_test)
     print("model trained")
-    if True:
-        _model.save_model('claim_model.pkl')
+    if reason:
+        _model.save_model('rejection_reasons.pkl')
+
+    else:
+        _model.save_model('approval_rejection.pkl')
 
 
 def claim_inference(inf_df, X_train, X_test, y_train, y_test, random_number):

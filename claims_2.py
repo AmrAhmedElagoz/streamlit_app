@@ -9,10 +9,10 @@ from interpretability import shap_lime, Interpretability
 import plotly.graph_objects as go
 
 X_train = pd.read_parquet('15OCT_train.parquet').reset_index().drop(columns = ['index'])
-X_test = pd.read_parquet('filtered_15OCT_test.parquet').reset_index().drop(columns = ['index'])
+X_test = pd.read_parquet('15OCT_test.parquet').reset_index().drop(columns = ['index'])
 y_train = pd.read_parquet('oct_y_train.parquet').reset_index().drop(columns = ['index'])
-y_test = pd.read_parquet('15OCT_y_test.parquet').reset_index().drop(columns = ['index'])
-df = pd.read_csv('amr_claims_second_model.csv')#.reset_index(drop= True)
+y_test = pd.read_parquet('oct_y_test.parquet').reset_index().drop(columns = ['index'])
+df = pd.read_csv('amr_claims.csv')#.reset_index(drop= True)
 # df = pd.read_csv('claims_filtered_data.csv')
 
 
@@ -45,7 +45,7 @@ st.dataframe(f_data)
 
 # Calculate and display percentage of approved vs rejected outcomes
 total_rows = len(df)
-approved_count = len(df[df['PREDICTED_OUTCOME'] == 'Approved'])
+approved_count = len(df[df['PREDICTED_OUTCOME'] == 1])
 rejected_count = total_rows - approved_count
 
 if total_rows > 0:
@@ -60,7 +60,12 @@ feature_contribution= st.checkbox("Feature Contribution")
 classes= ["Technical", "Doesn't follow clinical practice guidelines"]
 cfg= {}
 cfg['task_type']= "classification"
-cfg['model']= "claim_model.pkl"
+
+### To be set
+cfg['model']= "approval_rejection.pkl" # rejection_reasons.pkl or approval_rejection.pkl
+cfg['interpreter']= "approval_rejection_interpreter.pkl" # rejection_reasons_interpreter.pkl
+                                                        # approval_rejection_interpreter.pkl
+
 try:
     with open(cfg['model'], 'rb') as f:
         m = pickle.load(f)
@@ -69,7 +74,7 @@ except FileNotFoundError:
     print("Model file not found, retraining...")
     model(X_train, X_test, y_train, y_test)
     print("finished training...")
-    with open('claim_model.pkl', 'rb') as f:
+    with open(cfg['model'], 'rb') as f:
         m= pickle.load(f)
         print("model loaded!")
 
@@ -81,12 +86,14 @@ re_shap= st.checkbox("Recalculate SHAP...")
 if re_shap:
     print("Calculating SHAP...")
     interpreter = Interpretability(m, cfg['task_type'], X_train, X_test, y_train, y_test, apply_prior= True)
-    with open("interpreter.pkl", 'wb') as f:
+    with open(cfg['interpreter'], 'wb') as f:
         pickle.dump(interpreter, f)
         print("Interpreter model saved!")
 else:
-    with open('interpreter.pkl', 'rb') as f:
+    with open(cfg['interpreter'], 'rb') as f:
         interpreter= pickle.load(f)
+
+# X_test= X_test.drop(columns= ['NOTES'])
 
 if feature_contribution:
     if st.checkbox("Generate Random Index"):
@@ -94,9 +101,9 @@ if feature_contribution:
         random_number = st.text_input("inter the number: ")
         random_number= int(random_number)
         _dataframe= X_test.iloc[[random_number]]
-        dis_df= f_data.iloc[[random_number]]
+        # dis_df= f_data.iloc[[random_number]]
         st.write(_dataframe)
-        st.write(dis_df)
+        # st.write(dis_df)
 
         proba_preds= claim_inference(_dataframe, X_train, X_test, y_train, y_test, random_number)
         st.write("Model Probability Prediciton")
@@ -107,7 +114,7 @@ if feature_contribution:
             fig = go.Figure(data=[go.Pie(values=proba_preds[0])])
         st.plotly_chart(fig)
 
-        figs= shap_lime(interpreter, plot_contribution= {'idx': random_number, 'agg': False, 'max_display': 15})
+        figs= shap_lime(interpreter, plot_contribution= {'idx': random_number, 'agg': False, 'max_display': 20})
         for fig in figs[0]:
             st.pyplot(fig)
 
