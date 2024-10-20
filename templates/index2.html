@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataFrame Display and Image Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --background-color: #ecf0f1;
+            --text-color: #34495e;
+        }
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-family: 'Arial', sans-serif;
+        }
+        .container {
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            margin-top: 30px;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 10px;
+        }
+        .form-select, .form-control {
+            border: 2px solid var(--primary-color);
+            border-radius: 8px;
+        }
+        .btn-primary {
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            transition: background-color 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+        }
+        .table {
+            border-collapse: separate;
+            border-spacing: 0;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .table thead {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        #image_container {
+            background-color: rgba(52, 152, 219, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        #generated_image {
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    
+
+    <div class="container">
+        <h1 class="mb-4">DataFrame Display and Image Generator</h1>
+        
+        <form id="filter-form" class="row g-3 mb-4">
+            <div class="col-md-4">
+                <label for="spec" class="form-label">Specialty:</label>
+                <select id="spec" class="form-select">
+                    <option value="">All</option>
+                    {% for spec in specs %}
+                        <option value="{{ spec }}">{{ spec }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="date" class="form-label">Date:</label>
+                <select id="date" class="form-select">
+                    <option value="">All</option>
+                    {% for date in dates %}
+                        <option value="{{ date }}">{{ date }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="PUR_NAME" class="form-label">Insurance Company:</label>
+                <select id="PUR_NAME" class="form-select">
+                    <option value="">All</option>
+                    {% for PUR_NAME in PUR_NAMEs %}
+                        <option value="{{ PUR_NAME }}">{{ PUR_NAME }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="POLICY_NAME" class="form-label">Sub Account:</label>
+                <select id="POLICY_NAME" class="form-select">
+                    <option value="">All</option>
+                    {% for POLICY_NAME in POLICY_NAMEs %}
+                        <option value="{{ POLICY_NAME }}">{{ POLICY_NAME }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+
+        <div class="mb-4">
+            <button id="apply_filters" class="btn btn-primary">Apply Filters and Predict</button>
+            <!-- <button id="run_prediction" class="btn btn-success" disabled>Run Prediction</button> -->
+        </div>
+
+        <div id="table-container" class="table-responsive mb-4">
+            <!-- Table will be populated here -->
+        </div>
+
+        <div class="row g-3 align-items-end mb-4">
+            <div class="col-auto">
+                <label for="row_index" class="form-label">Select Row Index:</label>
+                <input type="number" id="row_index" class="form-control" placeholder="Enter row index">
+            </div>
+            <div class="col-auto">
+                <button id="generate_image" class="btn btn-primary">Generate Image for Selected Row</button>
+            </div>
+        </div>
+
+        <div id="image_container" class="mt-4">
+            <h3>Generated Image</h3>
+            <img id="generated_image" class="img-fluid" style="display: none;" alt="Generated image">
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            function updateFilters(changedFilter) {
+                var selectedValues = {
+                    spec: $('#spec').val(),
+                    date: $('#date').val(),
+                    PUR_NAME: $('#PUR_NAME').val(),
+                    POLICY_NAME: $('#POLICY_NAME').val()
+                };
+
+                var filtersToUpdate = ['spec', 'date', 'PUR_NAME', "POLICY_NAME"];
+                filtersToUpdate = filtersToUpdate.filter(filter => filter !== changedFilter);
+
+                filtersToUpdate.forEach(function(filter) {
+                    $.ajax({
+                        url: '/get_filter_values',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({
+                            filter_column: filter.replace('_', ' '),
+                            selected_values: selectedValues
+                        }),
+                        success: function(response) {
+                            var $select = $('#' + filter);
+                            $select.empty().append($('<option>').val('').text('All'));
+                            response.forEach(function(value) {
+                                $select.append($('<option>').val(value).text(value));
+                            });
+                        }
+                    });
+                });
+            }
+
+            $('#spec, #date, #PUR_NAME').change(function() {
+                updateFilters($(this).attr('id'));
+            });
+
+            $('#apply_filters').click(function() {
+                var selectedValues = {
+                    spec: $('#spec').val(),
+                    date: $('#date').val(),
+                    PUR_NAME: $('#PUR_NAME').val(),
+                    POLICY_NAME: $('#POLICY_NAME').val()
+                };
+
+                $.ajax({
+                    url: '/apply_filters',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(selectedValues),
+                    success: function(response) {
+                        $('#table-container').html(response.df_html);
+                        $('#run_prediction').prop('disabled', false);
+                    }
+                });
+            });
+
+            $('#run_prediction').click(function() {
+                $.ajax({
+                    url: '/run_prediction',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({}),
+                    success: function(response) {
+                        $('#table-container').html(response.df_html);
+                    }
+                });
+            });
+
+            // Handle the button click to generate image for the selected row
+            $('#generate_image').click(function() {
+                var rowIndex = $('#row_index').val();
+                if (rowIndex === "") {
+                    alert("Please enter a row index.");
+                    return;
+                }
+                // Send the row index to the server via AJAX
+                $.ajax({
+                    url: '/generate_image',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        'index': rowIndex  // Send the index of the row
+                    }),
+                    success: function(response) {
+                        // Show the generated image
+                        var imagePath = response.image_path;
+                        $('#generated_image').attr('src', imagePath).show();
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error occurred:', error);
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

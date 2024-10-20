@@ -2,119 +2,223 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Interactive Plots</title>
-    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataFrame Display and Image Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --background-color: #ecf0f1;
+            --text-color: #34495e;
+        }
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-family: 'Arial', sans-serif;
+        }
+        .container {
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            margin-top: 30px;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 10px;
+        }
+        .form-select, .form-control {
+            border: 2px solid var(--primary-color);
+            border-radius: 8px;
+        }
+        .btn-primary {
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            transition: background-color 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+        }
+        .table {
+            border-collapse: separate;
+            border-spacing: 0;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .table thead {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        #image_container {
+            background-color: rgba(52, 152, 219, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        #generated_image {
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+    </style>
 </head>
 <body>
-    <!-- Filter elements -->
-    
+    <div class="container">
+        <h1 class="mb-4">DataFrame Display and Image Generator</h1>
+        
+        <form class="row g-3 mb-4">
+            <div class="col-md-4">
+                <label for="date" class="form-label">Organization Key:</label>
+                <select id="date" class="form-select">
+                    <option value="All" selected>All</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="insurance_name" class="form-label">Unified Specialty:</label>
+                <select id="insurance_name" class="form-select">
+                    <option value="All" selected>All</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="sub_account" class="form-label">Doctor Name:</label>
+                <select id="sub_account" class="form-select">
+                    <option value="All" selected>All</option>
+                </select>
+            </div>
+        </form>
 
-    <label for="org_key">Organization Key:</label>
-    <select id="org_key">
-        <option value="All" selected>All</option>
-    </select>
+        <div class="table-responsive mb-4">
+            {{ df_html|safe }}
+        </div>
 
-    <label for="uni_specialty">Unified Specialty:</label>
-    <select id="uni_specialty">
-        <option value="All" selected>All</option>
-    </select>
+        <div class="row g-3 align-items-end mb-4">
+            <div class="col-auto">
+                <label for="row_index" class="form-label">Select Row Index:</label>
+                <input type="number" id="row_index" class="form-control" placeholder="Enter row index">
+            </div>
+            <div class="col-auto">
+                <button id="generate_image" class="btn btn-primary">Generate Image for Selected Row</button>
+            </div>
+        </div>
 
-    <label for="doctor_name">Doctor Name:</label>
-    <select id="doctor_name">
-        <option value="All" selected>All</option>
-    </select>
+        <div id="image_container" class="mt-4">
+            <h3>Generated Image</h3>
+            <img id="generated_image" class="img-fluid" style="display: none;" alt="Generated image">
+        </div>
+    </div>
 
-    
-
-    <!-- Plotly visualizations -->
-    <div id="plot_doctors"></div>
-    <div id="plot_specialties"></div>
-    <div id="plot_organizations"></div>
-    <div id="plot_doctors_date"></div>
-    <div id="plot_org_date"></div>
-    <div id="plot_spec_date"></div>
-
-    <img src="{{ url_for('send_image', filename=plot_img) }}" width="400" height="300" alt="Matplotlib Plot">
-
-    <img src="{{ url_for('send_image', filename=img1) }}" width="400" height="300" alt="Matplotlib Plot">
-
-
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Function to fetch filter choices and update the UI
-        function populateFilters() {
+        // Handle the button click to generate image for the selected row
+        $('#generate_image').click(function() {
+            var rowIndex = $('#row_index').val();
+            if (rowIndex === "") {
+                alert("Please enter a row index.");
+                return;
+            }
+            // Send the row index to the server via AJAX
             $.ajax({
-                url: '/get_filter_choices',
-                type: 'GET',
-                success: function(response) {
-                    // Populate filter options
-                    $('#org_key').html('<option value="All" selected>All</option>' + response.org_key.map(option => `<option value="${option}">${option}</option>`).join(''));
-                    $('#uni_specialty').html('<option value="All" selected>All</option>' + response.uni_specialty.map(option => `<option value="${option}">${option}</option>`).join(''));
-                    $('#doctor_name').html('<option value="All" selected>All</option>' + response.doctor_name.map(option => `<option value="${option}">${option}</option>`).join(''));
-
-                    // Attach event handler to filters
-                    $('#org_key, #uni_specialty, #doctor_name').change(function() {
-                        // Update plots when filters change
-                        updatePlots();
-                    });
-
-                    // Load initial plots without filtering
-                    updatePlots();
-                },
-                error: function(error) {
-                    console.error('Error fetching filter choices:', error);
-                }
-            });
-        }
-
-        // Function to update plots based on filter values
-        function updatePlots() {
-            var org_keyValue = $('#org_key').val();
-            var uni_specialtyValue = $('#uni_specialty').val();
-            var doctor_nameValue = $('#doctor_name').val();
-
-            // Handle the case where no filter is selected
-            if (!org_keyValue) {
-                org_keyValue = 'All';
-            }
-            if (!uni_specialtyValue) {
-                uni_specialtyValue = 'All';
-            }
-            if (!doctor_nameValue) {
-                doctor_nameValue = 'All';
-            }
-
-            $.ajax({
-                url: '/update_plots',
+                url: '/generate_image',
                 type: 'POST',
-                data: {org_key: org_keyValue, uni_specialty: uni_specialtyValue, doctor_name: doctor_nameValue},
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    'index': rowIndex  // Send the index of the row
+                }),
                 success: function(response) {
-                     
-                    // Update Plotly visualizations
-                    $('#plot_doctors').html(response.fig_doctors);
-                    $('#plot_specialties').html(response.fig_specialties);
-                    $('#plot_organizations').html(response.fig_organizations);
-                    $('#plot_doctors_date').html(response.fig_doctors_date);
-                    $('#plot_org_date').html(response.fig_org_date);
-                    $('#plot_spec_date').html(response.fig_spec_date);
-
-                    // // Update and populate filter options
-                    
-                    if(doctor_nameValue == 'All'){
-                    $('#doctor_name').html('<option value="All" selected>All</option>' + response.doctor_name.map(option => `<option value="${option}" ${option === doctor_nameValue ? 'selected' : ''}>${option}</option>`).join(''));
-                    }
-                     
+                    // Show the generated image
+                    var imagePath = response.image_path;
+                    $('#generated_image').attr('src', imagePath).show();
                 },
-                error: function(error) {
-                    console.error('Error updating plots:', error);
+                error: function(xhr, status, error) {
+                    console.error('Error occurred:', error);
                 }
             });
-        }
-
-        // Call the function to populate filters when the page loads
-        $(document).ready(function() {
-            populateFilters();
         });
     </script>
 </body>
 </html>
+//         // Function to fetch filter choices and update the UI
+//         function populateFilters() {
+//             $.ajax({
+//                 url: '/get_filter_choices',
+//                 type: 'GET',
+//                 success: function(response) {
+//                     // Populate filter options
+//                     $('#date').html('<option value="All" selected>All</option>' + response.date.map(option => `<option value="${option}">${option}</option>`).join(''));
+//                     $('#insurance_name').html('<option value="All" selected>All</option>' + response.insurance_name.map(option => `<option value="${option}">${option}</option>`).join(''));
+//                     $('#sub_account').html('<option value="All" selected>All</option>' + response.sub_account.map(option => `<option value="${option}">${option}</option>`).join(''));
+
+//                     // Attach event handler to filters
+//                     $('#date, #insurance_name, #sub_account').change(function() {
+//                         // Update plots when filters change
+//                         updatePlots();
+//                     });
+
+//                     // Load initial plots without filtering
+//                     updatePlots();
+//                 },
+//                 error: function(error) {
+//                     console.error('Error fetching filter choices:', error);
+//                 }
+//             });
+//         }
+
+//         // Function to update plots based on filter values
+//         function updatePlots() {
+//             var dateValue = $('#date').val();
+//             var insurance_nameValue = $('#insurance_name').val();
+//             var sub_accountValue = $('#sub_account').val();
+
+//             // Handle the case where no filter is selected
+//             if (!dateValue) {
+//                 dateValue = 'All';
+//             }
+//             if (!insurance_nameValue) {
+//                 insurance_nameValue = 'All';
+//             }
+//             if (!sub_accountValue) {
+//                 sub_accountValue = 'All';
+//             }
+
+//             $.ajax({
+//                 url: '/update_plots',
+//                 type: 'POST',
+//                 data: {date: dateValue, insurance_name: insurance_nameValue, sub_account: sub_accountValue},
+//                 success: function(response) {
+                     
+//                     // Update Plotly visualizations
+//                     //$('#plot_doctors').html(response.fig_doctors);
+//                     //$('#plot_specialties').html(response.fig_specialties);
+//                     //$('#plot_organizations').html(response.fig_organizations);
+//                     //$('#plot_doctors_date').html(response.fig_doctors_date);
+//                     //$('#plot_org_date').html(response.fig_org_date);
+//                     //$('#plot_spec_date').html(response.fig_spec_date);
+
+//                     $('#img1').html(response.fig_spec_date);
+//                     $('#img2').html(response.fig_spec_date);
+
+//                     // // Update and populate filter options
+                    
+//                     if(sub_accountValue == 'All'){
+//                     $('#sub_account').html('<option value="All" selected>All</option>' + response.sub_account.map(option => `<option value="${option}" ${option === sub_accountValue ? 'selected' : ''}>${option}</option>`).join(''));
+//                     }
+                     
+//                 },
+//                 error: function(error) {
+//                     console.error('Error updating plots:', error);
+//                 }
+//             });
+//         }
+
+//         // Call the function to populate filters when the page loads
+//         $(document).ready(function() {
+//             populateFilters();
+//         });
+//     </script>
+
+// </html>

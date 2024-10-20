@@ -256,7 +256,13 @@ class Interpretability:
 
         aggregated_shap = {}
         feature_names= np.array(feature_names)
-        print(len(original_feature_names))
+        print(len(original_feature_names), "lllll")
+        print(original_feature_names)
+        # List of elements to remove
+        remove_items = ['DIAGNOSIS_Agg', 'SERVICE_DESCRIPTION_Agg', 'SIGNS_AND_SYMPTOMS_Agg']
+
+        # Remove elements using list comprehension
+        original_feature_names = [item for item in original_feature_names if item not in remove_items]
         for name in original_feature_names:
             if name in feature_names: 
                 idx = np.where(feature_names == name)[0][0]
@@ -264,6 +270,7 @@ class Interpretability:
                 if dim3:
                     aggregated_shap[f'{name}_shape_values'] = values[:, idx, :]
                 else:
+                    # print(values.shape)
                     aggregated_shap[f'{name}_shape_values'] = values[:, idx]
 
                 if shap_values_display_data is not None:

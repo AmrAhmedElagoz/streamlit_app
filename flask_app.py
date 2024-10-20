@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, url_for, session, send_from_directory
 import pandas as pd
 import plotly.express as px
 # from visualizations import create_doctor_figure, create_specialty_figure, create_organization_figure, create_doctor_date_figure, create_org_date_figure, create_spec_date_figure
@@ -8,6 +8,8 @@ import plotly.graph_objects as go
 import interpretability
 
 import matplotlib.pyplot as plt
+import os
+from flask_session import Session
 
 
 
@@ -15,7 +17,9 @@ import matplotlib.pyplot as plt
 app = Flask(__name__)
 
 classes= ["Technical", "Doesn't follow clinical practice guidelines"]
-
+app.secret_key = os.urandom(24)  # Required for session to work
+app.config['SESSION_TYPE'] = 'filesystem'  # Store session in filesystem
+Session(app)  # Initialize session
 
 # Read data
 
@@ -35,7 +39,9 @@ with open("claim_model.pkl", 'rb') as f:
 with open('interpreter.pkl', 'rb') as f:
         interpreter= pickle.load(f)
         
-        
+# Path where images are saved
+IMAGE_FOLDER = os.path.join('static', 'images')
+app.config['IMAGE_FOLDER'] = IMAGE_FOLDER
 
 # Initial Plotly visualizations
 # fig_doctors = create_doctor_figure(df_walkin_and_noShow_preds)
@@ -45,81 +51,80 @@ with open('interpreter.pkl', 'rb') as f:
 @app.route('/')
 def index():
     
-    inf_df = df.sample()
-    predict_probs = model.predict_prob(inf_df, inf_df.index[0])
-    fig = go.Figure(data=[go.Pie(values=predict_probs[0], labels=classes)])
-    figs = interpreter.plot_contribution(idx=inf_df.index[0], agg=False, max_display=15)
+    
+    # Assuming df and model are already defined
+
+    # Sample 10 rows from the DataFrame
+    inf_df = df.sample(10)
+
+    # Placeholder to store prediction probabilities
+    predict_probs = []
+
+    # Loop through rows and predict probabilities
+    for index, row in inf_df.iterrows():
+        print(index)
+        # Reshape the row to a DataFrame as required by your model
+        row = row.to_frame().T
+        # Append the prediction probabilities (assuming it returns a list or array of probabilities)
+        predict_probs.append(model.predict_prob(row, index)[0])  # Assuming predict_prob returns a list of probabilities
+
+    # Convert the predict_probs list into a DataFrame with 2 columns (assuming binary classification)
+    predict_probs_df = pd.DataFrame(predict_probs, columns=['Prob_Class_0', 'Prob_Class_1'])
+
+    # Reset indices to ensure they align for concatenation
+    inf_df.reset_index(drop=True, inplace=True)
+    predict_probs_df.reset_index(drop=True, inplace=True)
+
+    # Concatenate the predictions with the original sampled DataFrame
+    inf_df = pd.concat([inf_df, predict_probs_df], axis=1).iloc[:,:10]
+    
+    session['inf_df'] = inf_df.to_json()  # Convert DataFrame to JSON and store in session
+    
+    df_html = inf_df.to_html(classes='table table-striped', index=False)
+
+    # Display the updated DataFrame with the prediction probabilities as two new columns
+    # print(inf_df)
+
+    
+    return render_template('index.html', df_html=df_html)
+    
+    
+
+
+@app.route('/generate_image', methods=['POST'])
+def generate_image():
+    # Get the index from the AJAX request
+    row_index = request.json.get('index')
+
+    # Retrieve the DataFrame from the session
+    inf_df = pd.read_json(session.get('inf_df'))
+
+    # Access the specific row by index
+    # row = inf_df.iloc[int(row_index)]
+    row = inf_df[inf_df["Unnamed: 0"] == int(row_index)]
+    print(f"Accessing row: {row}")
+
+    # Generate the plot (using matplotlib or your existing method)
+    figs = interpreter.plot_contribution(idx=row.index[0], agg=False, max_display=15)
     plt.subplots_adjust(left=0.15, right=0.85, top=0.9, bottom=0.1)
 
     # Save the figure
-    file = "plot99.png"
-    figs[0].savefig(file, dpi=300, bbox_inches='tight')
-    
-    fig.write_image("figure.png")
-    
-    return render_template('index.html',
-                           fig_doctors=fig.to_html(),
-                           img1 = "figure.png",
-                           plot_img=file
-                           )
-    
-@app.route('/images/<filename>')
+    image_file = f"static/plot_{row.index[0]}.png"  # Save the plot as a PNG image
+    figs[0].savefig(image_file, dpi=300, bbox_inches='tight')
+
+    # Return the path to the image for the frontend to display
+    return jsonify({'image_path': image_file})
+
+@app.route('/static/<filename>')
 def send_image(filename):
-    # Serve the image from the given file path
-    return send_file(filename)
+    return send_from_directory('static', filename)
 
-# # Route for fetching filter choices
-# @app.route('/get_filter_choices', methods=['GET'])
-# def get_filter_choices():
-#     # # Assuming 'doctor_name', 'unified_specialty', 'organization_key' for filters
-#     # org_key_choices = list(df_walkin_and_noShow_preds['organization_key'].unique())
-#     # uni_specialty_choices = list(df_walkin_and_noShow_preds['unified_specialty'].unique())
-#     # doctor_name_choices = list(df_walkin_and_noShow_preds['doctor_name'].unique())
 
-#     # return jsonify(org_key=org_key_choices, uni_specialty=uni_specialty_choices, doctor_name=doctor_name_choices)
 
-# # Route for updating plots via AJAX
-# @app.route('/update_plots', methods=['POST'])
-# def update_plots():
-#     org_key_value = request.form.get('org_key')
-#     uni_specialty_value = request.form.get('uni_specialty')
-#     doctor_name_value = request.form.get('doctor_name')
 
-#     # Update data based on filters (replace with your own logic)
-#     updated_data = update_data_based_on_filters(org_key_value, uni_specialty_value, doctor_name_value)
-#     doctor_name_choices = list(updated_data['doctor_name'].unique())
 
-#     # Update Plotly visualizations
-#     fig_doctors = create_doctor_figure(updated_data)
-#     fig_specialties = create_specialty_figure(updated_data)
-#     fig_organizations = create_organization_figure(updated_data)
-#     fig_doctors_date = create_doctor_date_figure(updated_data)
-#     fig_org_date = create_org_date_figure(updated_data)
-#     fig_spec_date = create_spec_date_figure(updated_data)
 
-#     # Return HTML representations of updated plots
-#     return jsonify(fig_doctors=fig_doctors.to_html(),
-#                    fig_specialties=fig_specialties.to_html(),
-#                    fig_organizations=fig_organizations.to_html(),
-#                    fig_doctors_date=fig_doctors_date.to_html(),
-#                    fig_org_date=fig_org_date.to_html(),
-#                    fig_spec_date=fig_spec_date.to_html(),
-#                    doctor_name=doctor_name_choices)
 
-# # Replace with your actual data manipulation logic
-# def update_data_based_on_filters(org_key, uni_specialty, doctor_name):
-#     updated_data = df_walkin_and_noShow_preds.copy()
-
-#     if org_key != "All" and org_key:
-#         updated_data = updated_data[updated_data['organization_key'] == org_key]
-
-#     if uni_specialty != "All" and uni_specialty:
-#         updated_data = updated_data[updated_data['unified_specialty'] == uni_specialty]
-
-#     if doctor_name != "All" and doctor_name:
-#         updated_data = updated_data[updated_data['doctor_name'] == doctor_name]
-
-#     return updated_data
 
 if __name__ == '__main__':
     app.run(debug=True)
