@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive Plots</title>
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <!-- Filter elements -->
+    
+
+    <label for="org_key">Organization Key:</label>
+    <select id="org_key">
+        <option value="All" selected>All</option>
+    </select>
+
+    <label for="uni_specialty">Unified Specialty:</label>
+    <select id="uni_specialty">
+        <option value="All" selected>All</option>
+    </select>
+
+    <label for="doctor_name">Doctor Name:</label>
+    <select id="doctor_name">
+        <option value="All" selected>All</option>
+    </select>
+
+    
+
+    <!-- Plotly visualizations -->
+    <div id="plot_doctors"></div>
+    <div id="plot_specialties"></div>
+    <div id="plot_organizations"></div>
+    <div id="plot_doctors_date"></div>
+    <div id="plot_org_date"></div>
+    <div id="plot_spec_date"></div>
+
+    <img src="{{ url_for('send_image', filename=plot_img) }}" width="400" height="300" alt="Matplotlib Plot">
+
+    <img src="{{ url_for('send_image', filename=img1) }}" width="400" height="300" alt="Matplotlib Plot">
+
+
+    <script>
+        // Function to fetch filter choices and update the UI
+        function populateFilters() {
+            $.ajax({
+                url: '/get_filter_choices',
+                type: 'GET',
+                success: function(response) {
+                    // Populate filter options
+                    $('#org_key').html('<option value="All" selected>All</option>' + response.org_key.map(option => `<option value="${option}">${option}</option>`).join(''));
+                    $('#uni_specialty').html('<option value="All" selected>All</option>' + response.uni_specialty.map(option => `<option value="${option}">${option}</option>`).join(''));
+                    $('#doctor_name').html('<option value="All" selected>All</option>' + response.doctor_name.map(option => `<option value="${option}">${option}</option>`).join(''));
+
+                    // Attach event handler to filters
+                    $('#org_key, #uni_specialty, #doctor_name').change(function() {
+                        // Update plots when filters change
+                        updatePlots();
+                    });
+
+                    // Load initial plots without filtering
+                    updatePlots();
+                },
+                error: function(error) {
+                    console.error('Error fetching filter choices:', error);
+                }
+            });
+        }
+
+        // Function to update plots based on filter values
+        function updatePlots() {
+            var org_keyValue = $('#org_key').val();
+            var uni_specialtyValue = $('#uni_specialty').val();
+            var doctor_nameValue = $('#doctor_name').val();
+
+            // Handle the case where no filter is selected
+            if (!org_keyValue) {
+                org_keyValue = 'All';
+            }
+            if (!uni_specialtyValue) {
+                uni_specialtyValue = 'All';
+            }
+            if (!doctor_nameValue) {
+                doctor_nameValue = 'All';
+            }
+
+            $.ajax({
+                url: '/update_plots',
+                type: 'POST',
+                data: {org_key: org_keyValue, uni_specialty: uni_specialtyValue, doctor_name: doctor_nameValue},
+                success: function(response) {
+                     
+                    // Update Plotly visualizations
+                    $('#plot_doctors').html(response.fig_doctors);
+                    $('#plot_specialties').html(response.fig_specialties);
+                    $('#plot_organizations').html(response.fig_organizations);
+                    $('#plot_doctors_date').html(response.fig_doctors_date);
+                    $('#plot_org_date').html(response.fig_org_date);
+                    $('#plot_spec_date').html(response.fig_spec_date);
+
+                    // // Update and populate filter options
+                    
+                    if(doctor_nameValue == 'All'){
+                    $('#doctor_name').html('<option value="All" selected>All</option>' + response.doctor_name.map(option => `<option value="${option}" ${option === doctor_nameValue ? 'selected' : ''}>${option}</option>`).join(''));
+                    }
+                     
+                },
+                error: function(error) {
+                    console.error('Error updating plots:', error);
+                }
+            });
+        }
+
+        // Call the function to populate filters when the page loads
+        $(document).ready(function() {
+            populateFilters();
+        });
+    </script>
+</body>
+</html>

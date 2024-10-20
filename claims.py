@@ -411,9 +411,13 @@ class Model:
     #     return self.model.predict(X)
     
     def predict_prob(self, X, random_number):
-        y= self._y_test.loc[[random_number]]
-        X= self.preprocess(X, y, train= False)
+        
+        y = self._y_test.loc[[random_number]]
+        X = self.preprocess(X, y, train= False)
+        
         return self.model.predict_proba(X)
+    
+    
     
     def preprocess_for_shap(self, X, train= True, random_number= None):
         if train:
@@ -460,6 +464,23 @@ def model(X_train, X_test, y_train, y_test):
 
 
 def claim_inference(inf_df, X_train, X_test, y_train, y_test, random_number):
+    try:
+        with open('claim_model.pkl', 'rb') as f:
+            _model= pickle.load(f)
+            print("Model file found!")
+            print("model loaded!")
+    except:
+        print("Model file not found, retraining...")
+        model(X_train, X_test, y_train, y_test)
+        print("finished training...")
+        with open('claim_model.pkl', 'rb') as f:
+            _model= pickle.load(f)
+            print("model loaded!")
+
+    return _model.predict_prob(inf_df, random_number)
+
+
+def claim_inference_flask(inf_df, X_train, X_test, y_train, y_test, random_number):
     try:
         with open('claim_model.pkl', 'rb') as f:
             _model= pickle.load(f)

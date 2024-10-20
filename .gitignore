@@ -11,3 +11,6 @@ test.py
 *.xlsx
 *.log
 test1.py
+*.png
+*.jpeg
+xPlain
