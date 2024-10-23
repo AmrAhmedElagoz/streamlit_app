@@ -57,7 +57,8 @@ else:
 
 # SHAP
 feature_contribution= st.checkbox("Feature Contribution")
-classes= ["Technical", "Doesn't follow clinical practice guidelines"]
+# classes= ["Technical", "Doesn't follow clinical practice guidelines"]
+classes= ["Rejected", "Approved"]
 cfg= {}
 cfg['task_type']= "classification"
 
@@ -72,11 +73,11 @@ try:
 
 except FileNotFoundError:
     print("Model file not found, retraining...")
-    model(X_train, X_test, y_train, y_test)
+    model(X_train, X_test, y_train, y_test, False)
     print("finished training...")
     with open(cfg['model'], 'rb') as f:
         m= pickle.load(f)
-        print("model loaded!")
+        print(f"{cfg['model']} model loaded!")
 
 except pickle.UnpicklingError:
     print("Error loading the pickle model.")
@@ -105,7 +106,7 @@ if feature_contribution:
         st.write(_dataframe)
         # st.write(dis_df)
 
-        proba_preds= claim_inference(_dataframe, X_train, X_test, y_train, y_test, random_number)
+        proba_preds= claim_inference(_dataframe, X_train, X_test, y_train, y_test, random_number, cfg)
         st.write("Model Probability Prediciton")
         st.write(proba_preds)
         if classes:

@@ -66,15 +66,14 @@ class Interpretability:
         return self.shap_values
     
     def _compute_shap_values(self):
-        """
-        TODO
-        one output: array of shape (#num_samples, *X.shape[1:]).
-        multiple outputs: array of shape (#num_samples, *X.shape[1:], #num_outputs).
-        """
+        
         if isinstance(self.model, (RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
                                    ExtraTreesClassifier, XGBClassifier, XGBRegressor, LGBMClassifier)):
             if self.apply_prior:
+                print("SHAPE: ", self.X_train.shape, type(self.X_train))
+                print("SHAPE: ", self.X_test.shape, type(self.X_test))
                 self.explainer = shap.TreeExplainer(self.model, self.X_train, feature_names= self.all_feature_names)
+                print("Done")
             else:
                 self.explainer = shap.TreeExplainer(self.model, feature_names= self.all_feature_names)
 
@@ -87,15 +86,20 @@ class Interpretability:
                 self.explainer = shap.KernelExplainer(self.model.predict, self.X_train)
         else:
             # Default to KernelExplainer for any unsupported models
+            print("dont go here!")
             self.explainer = shap.KernelExplainer(self.model.predict, self.X_train)
 
         # let it be like that for now to test .toarray() with the prior
         if self.apply_prior:
-            self.shap_values = self.explainer.shap_values(self.X_test)
+            print("on X_test")
+            self.shap_values = self.explainer.shap_values(self.X_test, check_additivity= False)
+            print("Are We Doooone", self.X_test.shape)
         else:
             self.shap_values = self.explainer.shap_values(self.X_test)
 
+        print("trying to calculate the Explainer with the Model")
         explainer = shap.Explainer(self.model)
+        print("Explainer calculated, applying on X_test")
         self.shap_values_explainer = explainer(self.X_test)
         
         self.base_value= self.explainer.expected_value
@@ -449,6 +453,7 @@ class Interpretability:
     
     def model_check(self, model):
         if hasattr(model, 'best_estimator_'):
+            print("getting the best estimator...")
             return model.best_estimator_
         else:
             return model

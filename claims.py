@@ -498,9 +498,9 @@ def model(X_train, X_test, y_train, y_test, reason= False):
         _model.save_model('approval_rejection.pkl')
 
 
-def claim_inference(inf_df, X_train, X_test, y_train, y_test, random_number):
+def claim_inference(inf_df, X_train, X_test, y_train, y_test, random_number, cfg):
     try:
-        with open('claim_model.pkl', 'rb') as f:
+        with open(cfg['model'], 'rb') as f:
             _model= pickle.load(f)
             print("Model file found!")
             print("model loaded!")
@@ -508,15 +508,15 @@ def claim_inference(inf_df, X_train, X_test, y_train, y_test, random_number):
         print("Model file not found, retraining...")
         model(X_train, X_test, y_train, y_test)
         print("finished training...")
-        with open('claim_model.pkl', 'rb') as f:
+        with open(cfg['model'], 'rb') as f:
             _model= pickle.load(f)
             print("model loaded!")
 
     return _model.predict_prob(inf_df, random_number)
 
-def get_corresponding_labels(y, encode= False):
+def get_corresponding_labels(y, encode= False, cfg= ""):
     try:
-        with open('claim_model.pkl', 'rb') as f:
+        with open(cfg['model'], 'rb') as f:
             _model= pickle.load(f)
         
         if encode:

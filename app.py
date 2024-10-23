@@ -189,7 +189,7 @@ if uploaded_file is not None:
         if feature_contribution:
             target_cls= st.selectbox("Select the target class", list(y_train.unique()))
             if type(DF[target][0]) == str:
-                classes, target_cls= get_corresponding_labels(target_cls, True)
+                classes, target_cls= get_corresponding_labels(target_cls, True, cfg)
                 st.write(classes)
             if st.button("Generate Random Index"):
                 X_test= X_test.reset_index()
