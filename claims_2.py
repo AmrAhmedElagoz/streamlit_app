@@ -115,9 +115,16 @@ if feature_contribution:
             fig = go.Figure(data=[go.Pie(values=proba_preds[0])])
         st.plotly_chart(fig)
 
-        figs= shap_lime(interpreter, plot_contribution= {'idx': random_number, 'agg': False, 'max_display': 20})
-        for fig in figs[0]:
+        figs= shap_lime(interpreter, plot_contribution= {'idx': random_number, 'agg': False, 'max_display': 20, 'P': proba_preds[0][0]})
+        for fig in figs[0][0]:
             st.pyplot(fig)
+
+        for tab in figs[0][1]:
+            tab.index= ["Contribution Percentage %", "Data"]
+            tab_dis= tab[['SERVICE_DESCRIPTION_Agg', 'DIAGNOSIS_Agg', 'SIGNS_AND_SYMPTOMS_Agg', 'CPG_COMPLIANCE', 
+                 'INSURANCE_COMPANY', 'SUB_ACCOUNT', 'CONTRACT_NO (MEMBER_CLASS)', 'TREATMENT_TYPE', 'PROVIDER_DEPARTMENT_CODE',
+                 'CLAIM_TYPE']]
+            st.write(tab_dis.T)
 
 
 # Display the table for rejected outcomes only

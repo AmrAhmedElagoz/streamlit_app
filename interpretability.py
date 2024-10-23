@@ -3,7 +3,7 @@ import shap
 from deprecated import deprecated
 import lime.lime_tabular
 import pandas as pd, numpy as np
-from utils import my_waterfall, og_waterfall, code_mapper
+from utils import my_waterfall, importance_table, code_mapper
 
 from sklearn.linear_model import LogisticRegression, LinearRegression, ElasticNet, Lasso, Ridge
 from sklearn.neighbors import KNeighborsRegressor
@@ -70,10 +70,7 @@ class Interpretability:
         if isinstance(self.model, (RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
                                    ExtraTreesClassifier, XGBClassifier, XGBRegressor, LGBMClassifier)):
             if self.apply_prior:
-                print("SHAPE: ", self.X_train.shape, type(self.X_train))
-                print("SHAPE: ", self.X_test.shape, type(self.X_test))
                 self.explainer = shap.TreeExplainer(self.model, self.X_train, feature_names= self.all_feature_names)
-                print("Done")
             else:
                 self.explainer = shap.TreeExplainer(self.model, feature_names= self.all_feature_names)
 
@@ -86,20 +83,15 @@ class Interpretability:
                 self.explainer = shap.KernelExplainer(self.model.predict, self.X_train)
         else:
             # Default to KernelExplainer for any unsupported models
-            print("dont go here!")
             self.explainer = shap.KernelExplainer(self.model.predict, self.X_train)
 
         # let it be like that for now to test .toarray() with the prior
         if self.apply_prior:
-            print("on X_test")
             self.shap_values = self.explainer.shap_values(self.X_test, check_additivity= False)
-            print("Are We Doooone", self.X_test.shape)
         else:
             self.shap_values = self.explainer.shap_values(self.X_test)
 
-        print("trying to calculate the Explainer with the Model")
         explainer = shap.Explainer(self.model)
-        print("Explainer calculated, applying on X_test")
         self.shap_values_explainer = explainer(self.X_test)
         
         self.base_value= self.explainer.expected_value
@@ -261,7 +253,10 @@ class Interpretability:
 
         aggregated_shap = {}
         feature_names= np.array(feature_names)
-        print(len(original_feature_names))
+        # print(len(original_feature_names))
+        remove_items = ['DIAGNOSIS_Agg', 'SERVICE_DESCRIPTION_Agg', 'SIGNS_AND_SYMPTOMS_Agg']
+        original_feature_names = [item for item in original_feature_names if item not in remove_items]
+
         for name in original_feature_names:
             if name in feature_names: 
                 idx = np.where(feature_names == name)[0][0]
@@ -299,7 +294,7 @@ class Interpretability:
         assert len(_df) == len(base_data), f"Miss dimension between the shap: {len(_df)} and base data: {len(base_data)}."
         return agg_df, sv_shape, shap_values_base, lower_bounds, upper_bounds
 
-    def plot_contribution(self, data= None, idx= 0, agg= True, normalize= True, max_display= -1):
+    def plot_contribution(self, data= None, idx= 0, agg= True, normalize= True, max_display= -1, P= None):
 
         # return og_waterfall(self.shap_values_explainer[:,:,0][0])
         if data is None:
@@ -312,6 +307,7 @@ class Interpretability:
             
             inf_data= self.processor.preprocess_for_shap(data)
             explainer = shap.Explainer(self.model)
+            
             shap_values_explainer = explainer(inf_data)
             data= data.reset_index(drop= True)
             shap_values_df, _, shap_values_base, lower_bounds, upper_bounds= self.process_explainer_values(shap_values_explainer, 
@@ -322,6 +318,7 @@ class Interpretability:
                    
         if not agg:
             plts= []
+            tables= []
             dict_dfs= self.agg_dataframes(shap_values_df, self.num_cls)
             for i in range(self.num_cls):
                 cls_df= dict_dfs[f'class_{i}']
@@ -338,31 +335,24 @@ class Interpretability:
                     # here
                     proc_base_df= np.array(base_df.iloc[idx])
                 else:
-                    value_to_key= code_mapper()
-                    # print("COLS: ", base_df.columns)
+                    # value_to_key= code_mapper()
                     base_df['PROVIDER_DEPARTMENT_CODE']= self.mapped_df['PROVIDER_DEPARTMENT_CODE']#base_df['PROVIDER_DEPARTMENT_CODE'].map(value_to_key['PROVIDER_DEPARTMENT_CODE'])
-                    # print("company2: ", self.base_data['INSURANCE_COMPANY'].unique())
                     base_df['INSURANCE_COMPANY']= self.mapped_df['PUR_NAME']#base_df['INSURANCE_COMPANY'].map(value_to_key['PUR_NAME'])
                     base_df['SUB_ACCOUNT']= self.mapped_df['POLICY_NAME']#base_df['SUB_ACCOUNT'].map(value_to_key['POLICY_NAME'])
                     data_inf= base_df.iloc[idx]
-                    # print("company: ", base_df['INSURANCE_COMPANY'].unique())
-                    # print("company: ", value_to_key['PUR_NAME'])
-                    # data_inf['PROVIDER_DEPARTMENT_CODE']= data_inf['PROVIDER_DEPARTMENT_CODE'][0]
-                    # data_inf['INSURANCE_COMPANY']= data_inf['INSURANCE_COMPANY'][0]
-                    # data_inf['SUB_ACCOUNT']= data_inf['SUB_ACCOUNT'][0]
 
                     data_inf['DIAGNOSIS_Agg']= self.mapped_df['DIAGNOSIS'].iloc[idx]
                     data_inf['SERVICE_DESCRIPTION_Agg']= self.mapped_df['SERVICE_DESCRIPTION'].iloc[idx]
                     data_inf['SIGNS_AND_SYMPTOMS_Agg']= self.mapped_df['SIGNS_AND_SYMPTOMS'].iloc[idx]
-                    print("asdasdasda", data_inf['DIAGNOSIS_Agg'])
+                    print("DIAGNOSIS_Agg: ", data_inf['DIAGNOSIS_Agg'])
 
                     proc_base_df= np.array(data_inf)#[1:]
 
                 plts.append(my_waterfall(proc_shap_values, proc_shap_values_base, None, proc_base_df, self.original_cols, 
                                 lower_bounds= lower_bounds, upper_bounds= upper_bounds, max_display= max_display))
                 
-            
-            return plts
+                tables.append(importance_table(proc_base_df, proc_shap_values, proc_shap_values_base, P, self.original_cols))
+            return plts, tables
         else:
             # TODO
             shap_values_base= np.sum(shap_values_base[idx])/len(shap_values_base[idx])
