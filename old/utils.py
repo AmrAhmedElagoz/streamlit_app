@@ -400,9 +400,6 @@ def agg_some_features(og_feat, shap_values, data):
     shap_modified = np.append(shap_modified, signs_symptoms)
     # data_modified = np.append(data_modified, signs_symptoms)
 
-    remove_items = ['DIAGNOSIS_Agg', 'SERVICE_DESCRIPTION_Agg', 'SIGNS_AND_SYMPTOMS_Agg']
-    og_feat = [item for item in og_feat if item not in remove_items]
-
     og_feat.extend(['DIAGNOSIS_Agg', 'SERVICE_DESCRIPTION_Agg', 'SIGNS_AND_SYMPTOMS_Agg'])
     ICDText_cols= [f'ICDText{i}' for i in range(1, 17)]
     ComplaintText_cols= [f'ComplaintText{i}' for i in range(1, 17)]
@@ -410,7 +407,7 @@ def agg_some_features(og_feat, shap_values, data):
     removed_cols= ICDText_cols + ComplaintText_cols + CombinedText_cols
 
     feat_names= [x for x in og_feat if x not in removed_cols]
-    assert shap_modified.shape == data_modified.shape, f"mismatch shap: {shap_modified.shape} and data: {data_modified.shape}"
+    assert shap_modified.shape == data_modified.shape, "mismatch"
     return shap_modified, feat_names, data_modified
 
 def code_mapper():
@@ -429,28 +426,12 @@ def code_mapper():
         all_dict[item]= value_to_keys
     return all_dict
 
-def importance_table(inf_data, inf_shap_values, base_value, inf_probability, f_names):
-    inf_shap_values, f_names, inf_data= agg_some_features(f_names, inf_shap_values, inf_data)
-    current_sum = np.sum(inf_shap_values)
-    if abs(current_sum) < 1e-10:
-        return inf_shap_values
+def contrib_values(values, shap_values_data, feature_names):
     
-    expected_sum = inf_probability - base_value
-    scaling_factor = expected_sum / current_sum
-    normalized_shap = inf_shap_values * scaling_factor
-
-    total_impact = inf_probability - base_value
-
-    percentages = {}
-    for feature, shap_value in zip(f_names, normalized_shap):
-        percentage = (shap_value / total_impact) * 100
-        percentages[feature] = percentage
-    table= pd.DataFrame([percentages])
-    assert len(inf_data) == table.shape[1], f"mismatched between table dim {inf_shap_values.shape}, and data: {len(inf_data)}, {len(f_names)}"
-    table.loc[len(table)] = inf_data
-    print("********************",table)
-    return table
-
+    values, feature_names, _ = agg_some_features(feature_names, values, shap_values_data)
+    
+    return values, feature_names
+    
 
 def my_waterfall(values, 
               shap_values_base, 
@@ -469,16 +450,17 @@ def my_waterfall(values,
     sv_shape: shap_values.shape
     shap_values_base: shap_values.base_values
     shap_values_display_data: shap_values.display_data
-    shap_values_data: shap_values.data np.array(pd.DataFrame)
+    shap_values_data: shap_values.data (pd.DataFrame)
     feature_names: shap_values.feature_names
     values: shap_values.values
     lower_bounds = getattr(shap_values, "lower_bounds", None)
     upper_bounds = getattr(shap_values, "upper_bounds", None)
     """
-    plt.clf()
+
     # processing: use shap_values_data
     if CLAIMS:
         values, feature_names, shap_values_data= agg_some_features(feature_names, values, shap_values_data)
+
 
     # Turn off interactive plot
     if show is False:

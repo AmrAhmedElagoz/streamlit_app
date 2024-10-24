@@ -96,6 +96,7 @@ class BaseModel(ABC):
         self.pipeline.fit(X, y)
 
     def predict(self, X):
+        
         self.ensure_pipeline_built()
         return self.pipeline.predict(X)
 

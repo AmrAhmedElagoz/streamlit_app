@@ -223,6 +223,9 @@
                         'index': rowIndex  // Send the index of the row
                     }),
                     success: function(response) {
+                        // Remove the previously shown image
+                        $('#generated_image').hide();
+
                         // Show the generated image
                         var imagePath = response.image_path;
                         $('#generated_image').attr('src', imagePath).show();

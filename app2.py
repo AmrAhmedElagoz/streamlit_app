@@ -10,9 +10,10 @@ import interpretability
 import matplotlib.pyplot as plt
 import os
 from flask_session import Session
+import warnings
 # Load your data and model
 df = pd.read_csv('amr_claims_second_model.csv')
-
+warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
 app = Flask(__name__)
 
@@ -30,6 +31,8 @@ with open("claim_model.pkl", 'rb') as f:
 # Load interpreter
 with open('interpreter.pkl', 'rb') as f:
         interpreter= pickle.load(f)
+        
+        
 # DOCTOR_SPECIALTY_CODE, CREATION_DATE, PUR_NAME, POLICY_NAME
 def filter_dataframe(dataframe, filters):
     filtered_df = dataframe.copy()
@@ -86,7 +89,29 @@ def apply_filters():
     
     selected_columns = result_df.iloc[:, :10].copy()  # First 10 columns
     selected_columns[['Prob_Class_0', 'Prob_Class_1']] = result_df[['Prob_Class_0', 'Prob_Class_1']]  # Add the specific columns
-
+    
+    
+    # Loop through the DataFrame
+    for index, row in selected_columns.iterrows():
+        # print()
+        # print(f"Index: {index}")
+        # print(f"Row data:\n{row}\n")
+        
+        row_index_og = result_df[result_df["Unnamed: 0"] == int(row["Unnamed: 0"])]
+        print(row_index_og.index[0], "AFTER PRED ****************")
+        figs = interpreter.plot_contribution(idx=row_index_og.index[0], P=row["Prob_Class_1"], agg=False, max_display=15, plot=False)
+        new_data = figs[1][0][['SERVICE_DESCRIPTION_Agg', 'DIAGNOSIS_Agg', 'SIGNS_AND_SYMPTOMS_Agg', 'CPG_COMPLIANCE', 
+                 'INSURANCE_COMPANY', 'SUB_ACCOUNT', 'CONTRACT_NO (MEMBER_CLASS)', 'TREATMENT_TYPE', 'PROVIDER_DEPARTMENT_CODE',
+                 'CLAIM_TYPE']].iloc[0]
+        
+        # print(figs[1][0].to_csv("a.csv"))
+        
+         # Update the current row with new values
+        for col in new_data.index:
+            # print(col, index)
+            selected_columns.loc[index, col] = new_data[col]
+    
+    # session['selected_columns'] = selected_columns.to_json()
     
     # Return only the first 10 rows without predictions
     df_html = selected_columns.to_html(classes='table table-striped', index=False)
@@ -113,8 +138,13 @@ def run_prediction():
     predict_probs_df = pd.DataFrame(predict_probs, columns=['Prob_Class_0', 'Prob_Class_1'])
     result_df = pd.concat([sampled_df.reset_index(drop=True), predict_probs_df], axis=1)
     
-    # Store the result in the session
+   
+    
+
+
+     # Store the result in the session
     session['inf_df'] = result_df.to_json()
+    
     
     # Return the HTML table with predictions
     df_html = result_df.to_html(classes='table table-striped', index=False)
@@ -134,15 +164,20 @@ def generate_image():
     # Access the specific row by index
     # row = inf_df.iloc[int(row_index)]
     row = inf_df[inf_df["Unnamed: 0"] == int(row_index)]
-    print(f"Accessing row: {row}")
+    # print(f"Accessing row: {row}")
+    
+    # print(inf_df)
 
+    
     # Generate the plot (using matplotlib or your existing method)
-    figs = interpreter.plot_contribution(idx=row.index[0], agg=False, max_display=15)
+    # figs = interpreter.plot_contribution(idx=row.index[0], agg=False, max_display=15)
+    print(row.index[0], "PLOTTING $$$$$$$$$$$$$$$$$$$$")
+    figs = interpreter.plot_contribution(idx=row.index[0], P=inf_df.iloc[row.index[0]]["Prob_Class_1"], agg=False, max_display=15)
     plt.subplots_adjust(left=0.15, right=0.85, top=0.9, bottom=0.1)
 
     # Save the figure
     image_file = f"static/plot_{row.index[0]}.png"  # Save the plot as a PNG image
-    figs[0].savefig(image_file, dpi=300, bbox_inches='tight')
+    figs[0][0].savefig(image_file, dpi=300, bbox_inches='tight')
 
     # Return the path to the image for the frontend to display
     return jsonify({'image_path': image_file})

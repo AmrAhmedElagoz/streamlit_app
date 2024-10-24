@@ -1,7 +1,9 @@
 env/
 __pycache__/
 wandb/
+flask_session/
 
+*.ipynb
 *.pkl
 *.parquet
 test.py
