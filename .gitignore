@@ -1,7 +1,7 @@
 env/
 __pycache__/
 wandb/
-flask_session/
+flask_session
 
 *.ipynb
 *.pkl

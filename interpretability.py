@@ -339,7 +339,7 @@ class Interpretability:
                 if data is not None:
                     # here
                      # value_to_key= code_mapper()
-                    print(data.shape, "**********")
+                    # print(data.shape, "**********")
                     # data['PROVIDER_DEPARTMENT_CODE']= self.mapped_df['PROVIDER_DEPARTMENT_CODE']#base_df['PROVIDER_DEPARTMENT_CODE'].map(value_to_key['PROVIDER_DEPARTMENT_CODE'])
                     # data['INSURANCE_COMPANY']= self.mapped_df['PUR_NAME']#base_df['INSURANCE_COMPANY'].map(value_to_key['PUR_NAME'])
                     # data['SUB_ACCOUNT']= self.mapped_df['POLICY_NAME']#base_df['SUB_ACCOUNT'].map(value_to_key['POLICY_NAME'])
@@ -356,18 +356,18 @@ class Interpretability:
                     # data_inf['DIAGNOSIS_Agg']= self.mapped_df['DIAGNOSIS'].iloc[idx]
                     # data_inf['SERVICE_DESCRIPTION_Agg']= self.mapped_df['SERVICE_DESCRIPTION'].iloc[idx]
                     # data_inf['SIGNS_AND_SYMPTOMS_Agg']= self.mapped_df['SIGNS_AND_SYMPTOMS'].iloc[idx]
-                    print(data_inf.shape, "$$$$$ 77?")
+                    # print(data_inf.shape, "$$$$$ 77?")
                     
                     data_inf['DIAGNOSIS_Agg'] = 'DIAGNOSIS_Agg'
                     data_inf['SERVICE_DESCRIPTION_Agg'] = 'SERVICE_DESCRIPTION_Agg'
                     data_inf['SIGNS_AND_SYMPTOMS_Agg'] = 'SIGNS_AND_SYMPTOMS_Agg'
-                    print(data_inf.shape, "$$$$$ 80?")
+                    # print(data_inf.shape, "$$$$$ 80?")
                     
                     
-                    print("DIAGNOSIS_Agg: ", data_inf['DIAGNOSIS_Agg'])
+                    # print("DIAGNOSIS_Agg: ", data_inf['DIAGNOSIS_Agg'])
 
                     proc_base_df= np.array(data.iloc[idx])
-                    print(proc_base_df.shape)
+                    # print(proc_base_df.shape)
                 else:
                     # value_to_key= code_mapper()
                     base_df['PROVIDER_DEPARTMENT_CODE']= self.mapped_df['PROVIDER_DEPARTMENT_CODE']#base_df['PROVIDER_DEPARTMENT_CODE'].map(value_to_key['PROVIDER_DEPARTMENT_CODE'])
@@ -378,7 +378,7 @@ class Interpretability:
                     data_inf['DIAGNOSIS_Agg']= self.mapped_df['DIAGNOSIS'].iloc[idx]
                     data_inf['SERVICE_DESCRIPTION_Agg']= self.mapped_df['SERVICE_DESCRIPTION'].iloc[idx]
                     data_inf['SIGNS_AND_SYMPTOMS_Agg']= self.mapped_df['SIGNS_AND_SYMPTOMS'].iloc[idx]
-                    print("DIAGNOSIS_Agg: ", data_inf['DIAGNOSIS_Agg'])
+                    # print("DIAGNOSIS_Agg: ", data_inf['DIAGNOSIS_Agg'])
 
                     proc_base_df= np.array(data_inf)#[1:]
                 # if plot:

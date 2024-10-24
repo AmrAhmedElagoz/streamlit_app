@@ -82,7 +82,7 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-4">
+            <!-- <div class="col-md-4">
                 <label for="date" class="form-label">Date:</label>
                 <select id="date" class="form-select">
                     <option value="">All</option>
@@ -90,7 +90,16 @@
                         <option value="{{ date }}">{{ date }}</option>
                     {% endfor %}
                 </select>
+            </div> -->
+
+            <div class="col-md-4">
+                <label for="start_date" class="form-label">Start Date:</label>
+                <input type="date" id="start_date" class="form-control">
+            
+                <label for="end_date" class="form-label">End Date:</label>
+                <input type="date" id="end_date" class="form-control">
             </div>
+            
             <div class="col-md-4">
                 <label for="PUR_NAME" class="form-label">Insurance Company:</label>
                 <select id="PUR_NAME" class="form-select">
@@ -139,46 +148,70 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        $(document).ready(function() {
-            function updateFilters(changedFilter) {
-                var selectedValues = {
-                    spec: $('#spec').val(),
-                    date: $('#date').val(),
-                    PUR_NAME: $('#PUR_NAME').val(),
-                    POLICY_NAME: $('#POLICY_NAME').val()
-                };
+            $(document).ready(function() {
+        function updateFilters(changedFilter) {
+            // Get the selected filter values, including start and end date
+            var selectedValues = {
+                spec: $('#spec').val(),
+                start_date: $('#start_date').val(),
+                end_date: $('#end_date').val(),
+                PUR_NAME: $('#PUR_NAME').val(),
+                POLICY_NAME: $('#POLICY_NAME').val()
+            };
 
-                var filtersToUpdate = ['spec', 'date', 'PUR_NAME', "POLICY_NAME"];
-                filtersToUpdate = filtersToUpdate.filter(filter => filter !== changedFilter);
+            // List of filters to update, excluding the one that was just changed
+            var filtersToUpdate = ['spec', 'PUR_NAME', 'POLICY_NAME'];
+            if (changedFilter !== 'date') {
+                filtersToUpdate.push('start_date', 'end_date'); // Ensure start_date and end_date are updated if needed
+            }
+            filtersToUpdate = filtersToUpdate.filter(filter => filter !== changedFilter);
 
-                filtersToUpdate.forEach(function(filter) {
-                    $.ajax({
-                        url: '/get_filter_values',
-                        type: 'POST',
-                        contentType: 'application/json',
-                        data: JSON.stringify({
-                            filter_column: filter.replace('_', ' '),
-                            selected_values: selectedValues
-                        }),
-                        success: function(response) {
-                            var $select = $('#' + filter);
-                            $select.empty().append($('<option>').val('').text('All'));
+            // For each filter to update, send an AJAX request to get new filter options
+            filtersToUpdate.forEach(function(filter) {
+                $.ajax({
+                    url: '/get_filter_values',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        filter_column: filter,
+                        selected_values: selectedValues
+                    }),
+                    success: function(response) {
+                        var $select = $('#' + filter);
+                        $select.empty().append($('<option>').val('').text('All')); // Always include 'All' option
+
+                        if (response.length === 0) {
+                            // If the response is empty, show a message or keep only the 'All' option
+                            $select.append($('<option>').val('').text('No results available')); // Optional: Add a message
+                        } else {
+                            // Populate the dropdown with the values returned from the server
                             response.forEach(function(value) {
                                 $select.append($('<option>').val(value).text(value));
                             });
                         }
-                    });
+                    }
                 });
-            }
+            });
+        }
 
-            $('#spec, #date, #PUR_NAME').change(function() {
+        // Trigger updateFilters when any filter changes (specify event listeners for inputs)
+        $('#spec, #start_date, #end_date, #PUR_NAME, #POLICY_NAME').on('change', function() {
+            var changedFilter = $(this).attr('id');
+            updateFilters(changedFilter);
+        });
+    
+
+
+            $('#spec, #start_date, #end_date, #PUR_NAME').change(function() {
                 updateFilters($(this).attr('id'));
             });
 
             $('#apply_filters').click(function() {
                 var selectedValues = {
                     spec: $('#spec').val(),
-                    date: $('#date').val(),
+                    // date: $('#date').val(),
+                    start_date: $('#start_date').val(),
+                    end_date: $('#end_date').val(),
                     PUR_NAME: $('#PUR_NAME').val(),
                     POLICY_NAME: $('#POLICY_NAME').val()
                 };

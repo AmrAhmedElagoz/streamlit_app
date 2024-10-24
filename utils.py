@@ -448,7 +448,7 @@ def importance_table(inf_data, inf_shap_values, base_value, inf_probability, f_n
     table= pd.DataFrame([percentages])
     assert len(inf_data) == table.shape[1], f"mismatched between table dim {inf_shap_values.shape}, and data: {len(inf_data)}, {len(f_names)}"
     table.loc[len(table)] = inf_data
-    print("********************",table)
+    # print("********************",table)
     return table
 
 

@@ -52,18 +52,59 @@ def index():
     # Get initial filter values
     specs = df['DOCTOR_SPECIALTY_CODE'].unique().tolist()
     dates = df['CREATION_DATE'].unique().tolist()
+    
     PUR_NAMEs = df['PUR_NAME'].unique().tolist()
     POLICY_NAMEs = df['POLICY_NAME'].unique().tolist()
     return render_template('index2.html', specs=specs, dates=dates, PUR_NAMEs=PUR_NAMEs, POLICY_NAMEs=POLICY_NAMEs)
 
 @app.route('/get_filter_values', methods=['POST'])
 def get_filter_values():
-    filter_column = request.json['filter_column']
-    selected_values = request.json['selected_values']
+    data = request.json  # Extract the entire JSON payload
+    # print(data)  # Debug: log the incoming request data
+    
 
-    filtered_df = filter_dataframe(df, selected_values)
-    unique_values = filtered_df[filter_column].unique().tolist()
+    filter_column =  request.json['filter_column']
+    selected_values = data['selected_values']
+
+    # Default to return an empty list if no filter_column is found
+    unique_values = []
+
+    # Check the filter column type
+    if filter_column == "spec":
+        filter_column = "DOCTOR_SPECIALTY_CODE"
+    elif filter_column == "start_date" or filter_column == "end_date":
+        filter_column = "CREATION_DATE"
+        
+        # Retrieve start_date and end_date from the selected_values dict
+        start_date = request.json["selected_values"]['start_date']
+        end_date = request.json["selected_values"]['end_date']
+
+        # print(start_date, end_date)  # Debug: log the date values
+
+        # If both dates are provided, filter the DataFrame by date range
+        if start_date and end_date:
+            start_date = pd.to_datetime(start_date)
+            end_date = pd.to_datetime(end_date)
+
+            # Filter DataFrame by date range
+            df['CREATION_DATE'] = pd.to_datetime(df['CREATION_DATE'])
+            filtered_df = df[(df['CREATION_DATE'] >= start_date) & (df['CREATION_DATE'] <= end_date)]
+            
+            # If there are any records in the filtered DataFrame, extract unique values
+            if not filtered_df.empty:
+                unique_values = filtered_df[filter_column].unique().tolist()
+    
+    else:
+        # For other filters, filter the DataFrame by selected values
+        filtered_df = filter_dataframe(df, selected_values)
+        
+        # If the filtered DataFrame has rows, extract unique values
+        # if not filtered_df.empty:
+        #     unique_values = filtered_df[filter_column].unique().tolist()
+
+    # Return the unique values as a JSON response (even if it's an empty list)
     return jsonify(unique_values)
+
 
 @app.route('/apply_filters', methods=['POST'])
 def apply_filters():
@@ -98,7 +139,7 @@ def apply_filters():
         # print(f"Row data:\n{row}\n")
         
         row_index_og = result_df[result_df["Unnamed: 0"] == int(row["Unnamed: 0"])]
-        print(row_index_og.index[0], "AFTER PRED ****************")
+        # print(row_index_og.index[0], "AFTER PRED ****************")
         figs = interpreter.plot_contribution(idx=row_index_og.index[0], P=row["Prob_Class_1"], agg=False, max_display=15, plot=False)
         new_data = figs[1][0][['SERVICE_DESCRIPTION_Agg', 'DIAGNOSIS_Agg', 'SIGNS_AND_SYMPTOMS_Agg', 'CPG_COMPLIANCE', 
                  'INSURANCE_COMPANY', 'SUB_ACCOUNT', 'CONTRACT_NO (MEMBER_CLASS)', 'TREATMENT_TYPE', 'PROVIDER_DEPARTMENT_CODE',
@@ -171,7 +212,7 @@ def generate_image():
     
     # Generate the plot (using matplotlib or your existing method)
     # figs = interpreter.plot_contribution(idx=row.index[0], agg=False, max_display=15)
-    print(row.index[0], "PLOTTING $$$$$$$$$$$$$$$$$$$$")
+    # print(row.index[0], "PLOTTING $$$$$$$$$$$$$$$$$$$$")
     figs = interpreter.plot_contribution(idx=row.index[0], P=inf_df.iloc[row.index[0]]["Prob_Class_1"], agg=False, max_display=15)
     plt.subplots_adjust(left=0.15, right=0.85, top=0.9, bottom=0.1)
 
