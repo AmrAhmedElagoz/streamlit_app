@@ -6,10 +6,21 @@ from flask_session import Session
 import os
 import matplotlib.pyplot as plt
 from io import BytesIO
+from datetime import timedelta
+import uuid
+pd.options.mode.chained_assignment = None  # Turn off SettingWithCopyWarning
+
+import warnings
+
+# Suppress FutureWarnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 app.config['SESSION_TYPE'] = 'filesystem'
+app.secret_key = os.urandom(24)
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 Session(app)
 
 # Load data and model
@@ -18,37 +29,58 @@ with open("claim_model.pkl", 'rb') as f:
     model = pickle.load(f)
 with open('interpreter.pkl', 'rb') as f:
     interpreter = pickle.load(f)
+    
+    
+    # User session management
+def init_user_session():
+    """Initialize user session if not already present"""
+    if 'user_id' not in session:
+        session['user_id'] = str(uuid.uuid4())
+    if 'filtered_df' not in session:
+        session['filtered_df'] = None
+    session.permanent = True
 
 # Define the filter function
 def filter_dataframe(dataframe, filters):
     filtered_df = dataframe.copy()
     if filters.get('spec'):
-        filtered_df = filtered_df[filtered_df['DOCTOR_SPECIALTY_CODE'] == filters['spec']]
-    if filters.get('date'):
-        filtered_df = filtered_df[filtered_df['CREATION_DATE'] == filters['date']]
+        filtered_df = filtered_df[filtered_df['DOCTOR_SPECIALTY_CODE'] == float(filters['spec'])]
+        
+        
+    # if filters.get('date'):
+    #     filtered_df = filtered_df[filtered_df['CREATION_DATE'] == filters['date']]
+    if filters.get("start_date") or filters.get("start_date"):
+        print("date")
+        # Retrieve start_date and end_date from the selected_values dict
+        start_date = filters['start_date']
+        end_date = filters['end_date']
+
+        # print(start_date, end_date)  # Debug: log the date values
+
+        # If both dates are provided, filter the DataFrame by date range
+        if start_date and end_date:
+            start_date = pd.to_datetime(start_date)
+            end_date = pd.to_datetime(end_date) + pd.Timedelta(days=1) 
+
+            # Filter DataFrame by date range
+            filtered_df['CREATION_DATE'] = pd.to_datetime(filtered_df['CREATION_DATE'])
+            filtered_df = filtered_df[(filtered_df['CREATION_DATE'] >= start_date) & (filtered_df['CREATION_DATE'] <= end_date)]
+        
     if filters.get('PUR_NAME'):
         filtered_df = filtered_df[filtered_df['PUR_NAME'] == filters['PUR_NAME']]
+        print("HEREEEE&*(&*(&**(&*())))")
+        print(filtered_df["PUR_NAME"].value_counts())
+        
+    
     if filters.get('POLICY_NAME'):
         filtered_df = filtered_df[filtered_df['POLICY_NAME'] == filters['POLICY_NAME']]
     return filtered_df
 
 
-
-
-@app.route('/send_filter_values', methods=['POST'])
-def send_filter_values():
-    specs = df['DOCTOR_SPECIALTY_CODE'].unique().tolist()
-    dates = df['CREATION_DATE'].unique().tolist()
-    
-    PUR_NAMEs = df['PUR_NAME'].unique().tolist()
-    POLICY_NAMEs = df['POLICY_NAME'].unique().tolist()
-    
-    
-    return jsonify([specs, dates, PUR_NAMEs, POLICY_NAMEs])
-
-
 @app.route('/get_filter_values', methods=['POST'])
 def get_filter_values():
+    
+    init_user_session()
     data = request.json
     # print(data)  # Debug: log the incoming request data
     
@@ -88,6 +120,7 @@ def get_filter_values():
         # For other filters, filter the DataFrame by selected values
         filtered_df = filter_dataframe(df, selected_values)
         
+        
         # If the filtered DataFrame has rows, extract unique values
         # if not filtered_df.empty:
         #     unique_values = filtered_df[filter_column].unique().tolist()
@@ -96,11 +129,29 @@ def get_filter_values():
     return jsonify(unique_values)
 
 
+@app.route('/send_filter_values', methods=['POST'])
+def send_filter_values():
+    init_user_session()
+    specs = df['DOCTOR_SPECIALTY_CODE'].unique().tolist()
+    dates = df['CREATION_DATE'].unique().tolist()
+    
+    PUR_NAMEs = df['PUR_NAME'].unique().tolist()
+    POLICY_NAMEs = df['POLICY_NAME'].unique().tolist()
+    
+    
+    return jsonify([specs, dates, PUR_NAMEs, POLICY_NAMEs])
+
+
+
+
 
 @app.route('/apply_filters', methods=['POST'])
 def apply_filters():
+    init_user_session()
     selected_values = request.json
+    print(selected_values, "999999")
     filtered_df = filter_dataframe(df, selected_values)
+    filtered_df.to_csv("filtered_df.csv")
     
     # Sample 10 rows from the filtered DataFrame
     sampled_df = filtered_df.sample(min(10, len(filtered_df)))
@@ -145,7 +196,7 @@ def apply_filters():
     # session['selected_columns'] = selected_columns.to_json()
     
     # Return only the first 10 rows without predictions
-    df_html = selected_columns.to_html(classes='table table-striped', index=False)
+    # df_html = selected_columns.to_html(classes='table table-striped', index=False)
     
     return jsonify(selected_columns.to_dict())
 
@@ -153,6 +204,7 @@ def apply_filters():
 
 @app.route('/generate_image', methods=['POST'])
 def generate_image():
+    init_user_session()
     row_index = request.json[1]
     # print(session["_permanent"])
     inf_df = pd.read_json(request.json[0])
@@ -183,4 +235,4 @@ def send_image(filename):
     return send_from_directory('static', filename)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0")
