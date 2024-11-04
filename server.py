@@ -1,39 +1,25 @@
-from flask import Flask, render_template, request, jsonify, send_file, url_for, session, send_from_directory
+from flask import Flask, jsonify, request, session, send_from_directory, send_file
+import base64
 import pandas as pd
-import plotly.express as px
-# from visualizations import create_doctor_figure, create_specialty_figure, create_organization_figure, create_doctor_date_figure, create_org_date_figure, create_spec_date_figure
 import pickle
-from claims import * 
-import plotly.graph_objects as go
-import interpretability
-
-import matplotlib.pyplot as plt
-import os
 from flask_session import Session
-import warnings
-# Load your data and model
-df = pd.read_csv('amr_claims_second_model.csv')
-warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
+import os
+import matplotlib.pyplot as plt
+from io import BytesIO
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24)
+app.config['SESSION_TYPE'] = 'filesystem'
+Session(app)
 
-# ... (keep your existing imports and configurations)
-classes= ["Technical", "Doesn't follow clinical practice guidelines"]
-app.secret_key = os.urandom(24)  # Required for session to work
-app.config['SESSION_TYPE'] = 'filesystem'  # Store session in filesystem
-Session(app)  # Initialize session
-
-
-
+# Load data and model
+df = pd.read_csv('amr_claims_second_model.csv')
 with open("claim_model.pkl", 'rb') as f:
     model = pickle.load(f)
-    
-# Load interpreter
 with open('interpreter.pkl', 'rb') as f:
-        interpreter= pickle.load(f)
-        
-        
-# DOCTOR_SPECIALTY_CODE, CREATION_DATE, PUR_NAME, POLICY_NAME
+    interpreter = pickle.load(f)
+
+# Define the filter function
 def filter_dataframe(dataframe, filters):
     filtered_df = dataframe.copy()
     if filters.get('spec'):
@@ -44,26 +30,30 @@ def filter_dataframe(dataframe, filters):
         filtered_df = filtered_df[filtered_df['PUR_NAME'] == filters['PUR_NAME']]
     if filters.get('POLICY_NAME'):
         filtered_df = filtered_df[filtered_df['POLICY_NAME'] == filters['POLICY_NAME']]
-                
     return filtered_df
 
-@app.route('/')
-def index():
-    # Get initial filter values
+
+
+
+@app.route('/send_filter_values', methods=['POST'])
+def send_filter_values():
     specs = df['DOCTOR_SPECIALTY_CODE'].unique().tolist()
     dates = df['CREATION_DATE'].unique().tolist()
     
     PUR_NAMEs = df['PUR_NAME'].unique().tolist()
     POLICY_NAMEs = df['POLICY_NAME'].unique().tolist()
-    return render_template('index2.html', specs=specs, dates=dates, PUR_NAMEs=PUR_NAMEs, POLICY_NAMEs=POLICY_NAMEs)
+    
+    
+    return jsonify([specs, dates, PUR_NAMEs, POLICY_NAMEs])
+
 
 @app.route('/get_filter_values', methods=['POST'])
 def get_filter_values():
-    data = request.json  # Extract the entire JSON payload
-    print(data)  # Debug: log the incoming request data
+    data = request.json
+    # print(data)  # Debug: log the incoming request data
     
 
-    filter_column =  request.json['filter_column']
+    filter_column =  data['filter_column']
     selected_values = data['selected_values']
 
     # Default to return an empty list if no filter_column is found
@@ -76,8 +66,8 @@ def get_filter_values():
         filter_column = "CREATION_DATE"
         
         # Retrieve start_date and end_date from the selected_values dict
-        start_date = request.json["selected_values"]['start_date']
-        end_date = request.json["selected_values"]['end_date']
+        start_date = data["selected_values"]['start_date']
+        end_date = data["selected_values"]['end_date']
 
         # print(start_date, end_date)  # Debug: log the date values
 
@@ -103,14 +93,13 @@ def get_filter_values():
         #     unique_values = filtered_df[filter_column].unique().tolist()
 
     # Return the unique values as a JSON response (even if it's an empty list)
-    print(unique_values)
     return jsonify(unique_values)
+
 
 
 @app.route('/apply_filters', methods=['POST'])
 def apply_filters():
     selected_values = request.json
-
     filtered_df = filter_dataframe(df, selected_values)
     
     # Sample 10 rows from the filtered DataFrame
@@ -157,78 +146,41 @@ def apply_filters():
     
     # Return only the first 10 rows without predictions
     df_html = selected_columns.to_html(classes='table table-striped', index=False)
-    return jsonify({'df_html': df_html})
-
-
-
-
-@app.route('/run_prediction', methods=['POST'])
-def run_prediction():
-    # Retrieve the filtered DataFrame from the session
-    filtered_df = pd.read_json(session.get('filtered_df'))
     
-    # Sample 10 rows from the filtered DataFrame
-    sampled_df = filtered_df.sample(min(10, len(filtered_df)))
-    
-    # Predict probabilities
-    predict_probs = []
-    for _, row in sampled_df.iterrows():
-        row_df = row.to_frame().T
-        predict_probs.append(model.predict_prob(row_df, row.name)[0])
-    
-    # Add prediction probabilities to the dataframe
-    predict_probs_df = pd.DataFrame(predict_probs, columns=['Prob_Class_0', 'Prob_Class_1'])
-    result_df = pd.concat([sampled_df.reset_index(drop=True), predict_probs_df], axis=1)
-    
-   
-    
+    return jsonify(selected_columns.to_dict())
 
-
-     # Store the result in the session
-    session['inf_df'] = result_df.to_json()
-    
-    
-    # Return the HTML table with predictions
-    df_html = result_df.to_html(classes='table table-striped', index=False)
-    return jsonify({'df_html': df_html})
-
-# ... (keep your existing generate_image and send_image routes)
 
 
 @app.route('/generate_image', methods=['POST'])
 def generate_image():
-    # Get the index from the AJAX request
-    row_index = request.json.get('index')
-
-    # Retrieve the DataFrame from the session
-    inf_df = pd.read_json(session.get('filtered_df'))
-
-    # Access the specific row by index
-    # row = inf_df.iloc[int(row_index)]
-    row = inf_df[inf_df["Unnamed: 0"] == int(row_index)]
-    # print(f"Accessing row: {row}")
-    
+    row_index = request.json[1]
+    # print(session["_permanent"])
+    inf_df = pd.read_json(request.json[0])
     # print(inf_df)
-
-    
-    # Generate the plot (using matplotlib or your existing method)
-    # figs = interpreter.plot_contribution(idx=row.index[0], agg=False, max_display=15)
-    # print(row.index[0], "PLOTTING $$$$$$$$$$$$$$$$$$$$")
+    # print(request.json)
+    row = inf_df[inf_df["Unnamed: 0"] == int(row_index)]
     figs = interpreter.plot_contribution(idx=row.index[0], P=inf_df.iloc[row.index[0]]["Prob_Class_1"], agg=False, max_display=15)
     plt.subplots_adjust(left=0.15, right=0.85, top=0.9, bottom=0.1)
 
     # Save the figure
-    image_file = f"static/plot_{row.index[0]}.png"  # Save the plot as a PNG image
-    figs[0][0].savefig(image_file, dpi=300, bbox_inches='tight')
+    # image_file = f"static/plot_{row.index[0]}_here.png"
+    # figs[0][0].savefig(image_file, dpi=300, bbox_inches='tight')
+    
+    # Save plot to an in-memory buffer
+    buffer = BytesIO()
+    figs[0][0].savefig(buffer, format='png', dpi=300, bbox_inches='tight')
+    buffer.seek(0)
+    
+    # Encode the image as base64
+    image_data = base64.b64encode(buffer.read()).decode('utf-8')
+    return jsonify({'image_data': image_data})  # Return base64 image data
+    # return send_file(buffer, mimetype='image/png', as_attachment=False)
 
-    # Return the path to the image for the frontend to display
-    return jsonify({'image_path': image_file})
+    # return jsonify({'image_path': f"{image_file}"})
 
 @app.route('/static/<filename>')
 def send_image(filename):
     return send_from_directory('static', filename)
 
-
-
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    app.run(debug=True)
