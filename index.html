@@ -54,9 +54,9 @@ it already exists), ‘x’ for creating and writing to a new file, and
 ‘a’ for appending (which on some Unix systems, means that all writes
 append to the end of the file regardless of the current seek position).
 In text mode, if encoding is not specified the encoding used is platform
-dependent: locale.getpreferredencoding(False) is called to get the
-current locale encoding. (For reading and writing raw bytes use binary
-mode and leave encoding unspecified.) The available modes are:</p>
+dependent: locale.getencoding() is called to get the current locale encoding.
+(For reading and writing raw bytes use binary mode and leave encoding
+unspecified.) The available modes are:</p>
 <table class="docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p>Character</p></td>
@@ -83,9 +83,6 @@ mode and leave encoding unspecified.) The available modes are:</p>
 <tr class="row-even"><td><p>‘+’</p></td>
 <td><p>open a disk file for updating (reading and writing)</p></td>
 </tr>
-<tr class="row-odd"><td><p>‘U’</p></td>
-<td><p>universal newline mode (deprecated)</p></td>
-</tr>
 </tbody>
 </table>
 <p>The default mode is ‘rt’ (open for reading text). For binary random
@@ -99,9 +96,6 @@ bytes objects without any decoding. In text mode (the default, or when
 ‘t’ is appended to the mode argument), the contents of the file are
 returned as strings, the bytes having been first decoded using a
 platform-dependent encoding or using the specified encoding if given.</p>
-<p>‘U’ mode is deprecated and will raise an exception in future versions
-of Python.  It has no effect in Python 3.  Use newline to control
-universal newlines mode.</p>
 <p>buffering is an optional integer used to set the buffering policy.
 Pass 0 to switch buffering off (only allowed in binary mode), 1 to select
 line buffering (only usable in text mode), and an integer &gt; 1 to indicate
