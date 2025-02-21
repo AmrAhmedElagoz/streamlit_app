@@ -40,7 +40,7 @@ dependencies = [
 [project.optional-dependencies]
 testing = [
     "pytest==8.3.4",
-    "Sphinx==8.1.3",
+    "Sphinx==8.2.0",
     "sphinx-rtd-theme==3.0.2",
     "sphinx-autodoc-typehints==2.5.0",
     "pytest-cov==6.0.0",
